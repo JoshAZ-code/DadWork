@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>DadWork - Interactive Homework & Study App</title>
+  <meta name="description" content="Interactive homework helper, study guides, memorization exercises, and quizzes with dad humor for Caleb & Christian.">
+  <meta name="theme-color" content="#4f46e5">
+
+  <!-- Tailwind CSS CDN for instant responsive styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    if (window.tailwind) {
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Canvas Confetti for high score celebrations -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col antialiased">
+  <!-- Header / Navigation Bar -->
+  <header id="app-header" class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm"></header>
+
+  <!-- Main App Content Canvas -->
+  <main id="app-main" class="flex-1 px-4 py-6 sm:py-8"></main>
+
+  <!-- Footer -->
+  <footer class="py-6 border-t border-slate-200/80 bg-white text-center text-xs text-slate-400">
+    <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <span class="font-bold text-slate-700">DadWork</span>
+        <span>•</span>
+        <span>Made with ❤️ and groan-worthy Dad Jokes</span>
+      </div>
+      <div>
+        <span>Caleb (Middle School) & Christian (Elementary School)</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Self-contained bundle: works on file://, localhost, and cloud hosting! -->
+  <script src="bundle.js"></script>
+</body>
+</html>
