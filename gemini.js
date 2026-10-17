@@ -1,4 +1,4 @@
-// DadWork App - Multimodal Gemini Vision Engine & Study Unit Generator
+// DadWork App - Multimodal Gemini Vision Engine & Study Unit Generator (Multi-Page & Video Support)
 
 const GEMINI_API_STORAGE_KEY = 'dadwork_gemini_api_key';
 
@@ -15,48 +15,47 @@ export function setGeminiApiKey(key) {
 }
 
 /**
- * Analyze an uploaded worksheet or study guide image using Gemini 1.5 Flash (or smart fallback)
- * @param {string} base64Data - Base64 data URL of the uploaded image
- * @param {string} mimeType - Image mime type (image/jpeg, image/png, etc.)
+ * Analyze an uploaded multi-page homework packet or video scan using Gemini 1.5 Flash
+ * @param {Array<{data: string, mimeType: string, name?: string}>} pages - Array of page images/videos in base64 data URLs
  * @param {string} preferredStudentId - Optional student hint ('caleb' or 'christian')
  */
-export async function analyzeWorksheetImage(base64Data, mimeType, preferredStudentId = '') {
-  const apiKey = getGeminiApiKey();
-
-  // If no API key is provided, use the smart simulation engine to give immediate high-quality results
-  if (!apiKey) {
-    console.info('No Gemini API key provided. Using DadWork Smart Simulation Engine.');
-    return simulateImageAnalysis(preferredStudentId);
+export async function analyzeWorksheetPacket(pages, preferredStudentId = '') {
+  if (!pages || pages.length === 0) {
+    throw new Error('Please upload at least one page or video scan.');
   }
 
-  // Base64 payload without data prefix
-  const base64Clean = base64Data.includes('base64,') 
-    ? base64Data.split('base64,')[1] 
-    : base64Data;
+  const apiKey = getGeminiApiKey();
+
+  // If no API key is provided, use the smart simulation engine
+  if (!apiKey) {
+    console.info('No Gemini API key provided. Using DadWork Smart Multi-Page Simulation Engine.');
+    return simulateMultiPageAnalysis(pages, preferredStudentId);
+  }
 
   const promptText = `
 You are the AI engine for "DadWork", an interactive homework app built by a loving, witty dad for his two sons:
-- Caleb: Middle School. Interests: Marvel movies (Iron Man, Spider-Man, Avengers), Soccer & FIFA, WWE wrestling, NBA basketball, NFL football, video games (Fortnite, Rocket League).
+- Caleb: Middle School. Interests: Marvel movies (Avengers, Spider-Man, Iron Man), Soccer & FIFA, WWE wrestling, NBA basketball, NFL football, video games (Fortnite, Rocket League).
 - Christian: Elementary School. Interests: TV shows (Henry Danger / Captain Man), Roblox games (Dandy's World), Minions movies (bananas, silly laughs), Peppa Pig (Daddy Pig muddy puddles), books (Dog Man by Dav Pilkey, Diary of a Wimpy Kid "Zoo-Wee Mama!").
 
-ANALYZE THIS HOMEWORK / STUDY GUIDE PAGE:
-1. Identify who this homework belongs to (either "caleb" or "christian"). Look at student name handwriting, grade level, topic difficulty. If unclear, default to "${preferredStudentId || 'christian'}".
-2. Identify the School Subject: ("Math", "Spelling", "Vocabulary", "Science", "Social Studies", "Reading", or "English").
-3. Determine a clear Unit Title (e.g. "Pre-Algebra: Solving One-Step Equations" or "Week 6 Phonics & Spelling List").
-4. Extract the core concepts and produce:
-   a) A brief study guide / kitchen table lesson explaining how to perform the exercises. Write this in a warm, funny Dad tone incorporating the child's specific interests (e.g. Marvel/Fortnite analogies for Caleb, or Minions/Dog Man/Henry Danger for Christian).
-   b) 4 to 8 memorization items (flashcards or spelling words with phonetic/meaning clues).
-   c) A quiz with between 5 and 10 questions (never more than 10). Questions can be multiple-choice (with 4 options and correctIndex 0-3) or text-input (for spelling/vocab). Provide clear explanations for each question.
+ANALYZE THIS MULTI-PAGE HOMEWORK PACKET / STUDY GUIDE (Containing ${pages.length} page(s) or scan):
+1. Review all pages in order.
+2. Identify who this homework belongs to (either "caleb" or "christian"). Look at student name handwriting, grade level, topic difficulty. If unclear, default to "${preferredStudentId || 'christian'}".
+3. Identify the School Subject: ("Math", "Spelling", "Vocabulary", "Science", "Social Studies", "Reading", or "English").
+4. Determine a clear Unit Title summarizing the entire packet.
+5. Synthesize the whole packet and produce:
+   a) A unified study guide / kitchen table lesson explaining how to perform the exercises across the packet. Write this in a warm, funny Dad tone incorporating the child's specific interests (Marvel/gaming/sports for Caleb, Minions/Dog Man/Henry Danger for Christian).
+   b) 4 to 8 key memorization items (flashcards or spelling words with phonetic/meaning clues) synthesizing the core concepts across all pages.
+   c) A comprehensive quiz with between 5 and 10 questions (never more than 10) covering the different exercises in the packet. Questions can be multiple-choice (4 options with correctIndex 0-3) or text-input (for spelling/vocab). Provide clear explanations for each question.
 
 RETURN STRICTLY RAW JSON (no markdown formatting, no code fences) with this exact schema:
 {
   "studentId": "caleb" or "christian",
   "subject": "Math" | "Spelling" | "Vocabulary" | "Science" | "Social Studies" | "Other",
   "title": "Short Descriptive Title",
-  "notes": "Extracted summary of what was on the page",
+  "notes": "Extracted summary of what was covered across the ${pages.length} pages",
   "studyGuide": {
     "summary": "1-2 sentence big picture explanation with dad humor and their favorite interest",
-    "keyRules": ["Step 1 / Rule 1", "Step 2 / Rule 2", "Step 3 / Rule 3"],
+    "keyRules": ["Rule / Step 1", "Rule / Step 2", "Rule / Step 3"],
     "dadExample": "Concrete example problem solved step-by-step with funny analogy"
   },
   "memorizationItems": [
@@ -78,26 +77,26 @@ RETURN STRICTLY RAW JSON (no markdown formatting, no code fences) with this exac
   try {
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
+    const parts = [{ text: promptText }];
+
+    pages.forEach(p => {
+      const base64Clean = p.data.includes('base64,') ? p.data.split('base64,')[1] : p.data;
+      parts.push({
+        inline_data: {
+          mime_type: p.mimeType || 'image/jpeg',
+          data: base64Clean
+        }
+      });
+    });
+
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: promptText },
-              {
-                inline_data: {
-                  mime_type: mimeType || 'image/jpeg',
-                  data: base64Clean
-                }
-              }
-            ]
-          }
-        ],
+        contents: [{ parts }],
         generationConfig: {
           temperature: 0.3,
-          maxOutputTokens: 2500,
+          maxOutputTokens: 3000,
           responseMimeType: "application/json"
         }
       })
@@ -114,115 +113,115 @@ RETURN STRICTLY RAW JSON (no markdown formatting, no code fences) with this exac
       throw new Error('Gemini API returned an empty response.');
     }
 
-    // Clean JSON if needed
     const cleanJson = candidate.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
-    const parsed = JSON.parse(cleanJson);
-    return parsed;
+    return JSON.parse(cleanJson);
   } catch (error) {
-    console.error('Failed to parse image with Gemini API:', error);
+    console.error('Failed to parse multi-page packet with Gemini API:', error);
     throw error;
   }
 }
 
 /**
- * Smart fallback simulation engine when testing without an active API key
+ * Backward compatibility wrapper
  */
-function simulateImageAnalysis(preferredStudentId) {
+export async function analyzeWorksheetImage(base64Data, mimeType, preferredStudentId = '') {
+  return analyzeWorksheetPacket([{ data: base64Data, mimeType }], preferredStudentId);
+}
+
+function simulateMultiPageAnalysis(pages, preferredStudentId) {
   const isCaleb = preferredStudentId === 'caleb';
-  
+  const pageCount = pages ? pages.length : 1;
+
   if (isCaleb) {
     return {
       studentId: 'caleb',
       subject: 'Math',
-      title: 'Middle School Geometry: Area & Perimeter of Polygons',
-      notes: 'Worksheet on finding perimeter and area of rectangles, triangles, and soccer fields.',
+      title: `Middle School Algebra & Geometry (${pageCount}-Page Packet)`,
+      notes: `Combined study packet spanning ${pageCount} pages covering algebraic expressions and polygon areas.`,
       studyGuide: {
-        summary: "Perimeter is walking the entire sideline of a soccer pitch; Area is counting how much turf grass is inside!",
+        summary: `Balancing full-packet math problems is like executing a perfect set-piece in soccer or coordinating a 4-player Fortnite squad!`,
         keyRules: [
-          "Perimeter: Add up ALL outer sides (P = 2L + 2W for rectangles).",
-          "Area of Rectangle: Multiply Length times Width (A = L × W).",
-          "Area of Triangle: Half of the base times height (A = 1/2 × b × h) - just like splitting the soccer field on a diagonal pass!"
+          "Isolate the variable on one side by performing inverse operations.",
+          "Keep equations balanced: what you do to the left side, you must do to the right.",
+          "Check perimeter and area formulas: Perimeter walks the sideline; Area measures inside the turf!"
         ],
-        dadExample: "If an NFL endzone is 10 yards long and 50 yards wide: Area = 10 × 50 = 500 sq yards! Touchdown!"
+        dadExample: "If 3x + 12 = 36: first subtract 12 from both sides to get 3x = 24. Then divide by 3 to isolate x = 8. Boom! Goal from midfield!"
       },
       memorizationItems: [
-        { term: "Rectangle Area Formula", definition: "A = Length × Width", type: "flashcard" },
-        { term: "Triangle Area Formula", definition: "A = 1/2 × base × height", type: "flashcard" },
-        { term: "Perimeter", definition: "The total distance around the outside edge of a shape", type: "flashcard" },
-        { term: "Square Units", definition: "Units used for Area (e.g. cm², ft², yards²)", type: "flashcard" }
+        { term: "Inverse Operations", definition: "Operations that undo each other (Add ↔ Subtract, Multiply ↔ Divide)", type: "flashcard" },
+        { term: "Isolating Variables", definition: "Getting the unknown letter alone on one side of '='", type: "flashcard" },
+        { term: "Rectangle Area", definition: "Area = Length × Width", type: "flashcard" },
+        { term: "Triangle Area", definition: "Area = 1/2 × Base × Height", type: "flashcard" }
       ],
       quizQuestions: [
         {
           id: 'q1',
           type: 'multiple-choice',
-          question: "What is the area of a rectangle with a length of 8 meters and a width of 6 meters?",
-          options: ["48 square meters", "28 meters", "14 square meters", "36 square meters"],
+          question: "From Page 1 of the packet: Solve for x in 2x + 8 = 24",
+          options: ["x = 8", "x = 16", "x = 12", "x = 6"],
           correctIndex: 0,
-          explanation: "Area = 8 × 6 = 48 sq meters. Clean 3-pointer from downtown!"
+          explanation: "Subtract 8 to get 2x = 16, then divide by 2: x = 8. Clean 3-pointer!"
         },
         {
           id: 'q2',
           type: 'multiple-choice',
-          question: "Find the perimeter of a square where each side is 9 feet long.",
-          options: ["18 feet", "81 square feet", "36 feet", "27 feet"],
-          correctIndex: 2,
-          explanation: "Perimeter = 4 × 9 = 36 feet all the way around!"
+          question: "From Page 2: What is the area of a rectangle with length 12m and width 5m?",
+          options: ["60 square meters", "34 meters", "17 square meters", "50 square meters"],
+          correctIndex: 0,
+          explanation: "Area = 12 × 5 = 60 sq meters!"
         },
         {
           id: 'q3',
           type: 'multiple-choice',
-          question: "What is the area of a triangle with base = 10 cm and height = 6 cm? (Remember: 1/2 × b × h)",
-          options: ["60 cm²", "30 cm²", "16 cm²", "32 cm²"],
-          correctIndex: 1,
-          explanation: "1/2 of 10 is 5; 5 × 6 = 30 cm²! Calculated!"
+          question: "Solve for y: y / 4 = 9",
+          options: ["y = 36", "y = 13", "y = 5", "y = 28"],
+          correctIndex: 0,
+          explanation: "Multiply both sides by 4: 9 × 4 = 36!"
         },
         {
           id: 'q4',
           type: 'multiple-choice',
-          question: "If a FIFA soccer pitch has sides of 100 meters and 70 meters, what is the total perimeter?",
-          options: ["340 meters", "170 meters", "7,000 square meters", "240 meters"],
+          question: "If a soccer field has sides of 110m and 75m, what is the total perimeter?",
+          options: ["370 meters", "185 meters", "8,250 square meters", "295 meters"],
           correctIndex: 0,
-          explanation: "Perimeter = 100 + 70 + 100 + 70 = 340 meters! World Cup ready!"
+          explanation: "Perimeter = 110 + 75 + 110 + 75 = 370 meters!"
         },
         {
           id: 'q5',
           type: 'multiple-choice',
-          question: "Which of the following units represents an AREA measurement?",
-          options: ["14 inches", "25 square feet (ft²)", "10 pounds", "32 seconds"],
-          correctIndex: 1,
-          explanation: "Area is always measured in square units!"
+          question: "What is the inverse of multiplying by 7?",
+          options: ["Dividing by 7", "Subtracting 7", "Adding 7", "Squaring 7"],
+          correctIndex: 0,
+          explanation: "Division is the inverse of multiplication!"
         }
       ]
     };
   } else {
-    // Default Christian
     return {
       studentId: 'christian',
       subject: 'Science',
-      title: 'Elementary Science: Animals, Habitats & Adaptation',
-      notes: 'Science study sheet on animal coverings, herbivores vs carnivores, and habitats.',
+      title: `Elementary Science: Animal Habitats & Lifecycles (${pageCount}-Page Packet)`,
+      notes: `Complete multi-page study packet covering animal habitats, food chains, and adaptations.`,
       studyGuide: {
-        summary: "Animals adapt to their environment just like Toons use special items in Dandy's World!",
+        summary: `This whole packet shows how animals survive and adapt in nature—just like Toons grouping together in Dandy's World!`,
         keyRules: [
-          "Herbivores only eat plants, leaves, and fruits (like silly Minions eating bananas!).",
-          "Carnivores eat other animals/meat (like Petey the Cat chasing a fish!).",
-          "Omnivores eat BOTH plants and meat (like humans and dogs!).",
-          "Camouflage helps animals blend into their surroundings to stay safe from danger."
+          "Herbivores eat plants (like silly Minions eating bananas!).",
+          "Carnivores eat meat; Omnivores eat both plants and meat.",
+          "Camouflage helps animals hide from predators like Bark Knight hiding in shadows."
         ],
-        dadExample: "A polar bear has thick white fur. The white fur camouflages in snow, and the thick fat keeps it warm while splashing in icy water better than muddy puddles!"
+        dadExample: "A desert camel has long eyelashes to keep sand out of its eyes and humps to store fat for long trips without water. Zoo-Wee Mama!"
       },
       memorizationItems: [
-        { term: "Herbivore", definition: "An animal that eats only plants (like cows and rabbits)", type: "flashcard" },
-        { term: "Carnivore", definition: "An animal that eats only other animals/meat (like lions)", type: "flashcard" },
-        { term: "Omnivore", definition: "An animal that eats both plants and animals (like bears)", type: "flashcard" },
-        { term: "Camouflage", definition: "Colors or patterns that help an animal hide in its habitat", type: "flashcard" },
-        { term: "Habitat", definition: "The natural home or environment of a plant or animal", type: "flashcard" }
+        { term: "Herbivore", definition: "An animal that eats only plants", type: "flashcard" },
+        { term: "Carnivore", definition: "An animal that eats only meat", type: "flashcard" },
+        { term: "Omnivore", definition: "An animal that eats both plants and animals", type: "flashcard" },
+        { term: "Camouflage", definition: "Patterns or colors that help an animal hide", type: "flashcard" }
       ],
       quizQuestions: [
         {
           id: 'q1',
           type: 'multiple-choice',
-          question: "An animal that only eats plants and fruits (like a Minion eating bananas) is called a:",
+          question: "From Page 1 of the packet: An animal that eats only plants and fruits is called a:",
           options: ["Carnivore", "Herbivore", "Robot", "Superhero"],
           correctIndex: 1,
           explanation: "Herbivores eat plants! Bananas count!"
@@ -230,34 +229,34 @@ function simulateImageAnalysis(preferredStudentId) {
         {
           id: 'q2',
           type: 'multiple-choice',
-          question: "What is an animal's natural home called?",
-          options: ["A Man Cave", "A Habitat", "A Playground", "A Supermarket"],
+          question: "From Page 2: What is an animal's natural home called?",
+          options: ["A Man Cave", "A Habitat", "A Supermarket", "A Garage"],
           correctIndex: 1,
-          explanation: "A Habitat is where an animal naturally lives, finds food, and stays safe!"
+          explanation: "A Habitat is where an animal naturally lives and finds food!"
         },
         {
           id: 'q3',
           type: 'multiple-choice',
           question: "Why do chameleons change colors to match leaves and branches?",
-          options: ["To show off their fashion", "Camouflage to hide from predators", "Because they are sleepy", "To jump in muddy puddles"],
-          correctIndex: 1,
-          explanation: "Camouflage helps them hide! Zoo-Wee Mama!"
+          options: ["Camouflage to stay safe from predators", "Because they are cold", "To dance", "To jump in puddles"],
+          correctIndex: 0,
+          explanation: "Camouflage keeps them hidden! Supa Buddy work!"
         },
         {
           id: 'q4',
           type: 'multiple-choice',
-          question: "Dog Man is a dog-human superhero. If dogs eat meat and kibble, what kind of eater are they?",
-          options: ["Omnivore (eats both)", "Carnivore only", "Plant eater only", "Dinosaur"],
+          question: "Dog Man is a dog-human superhero. Since dogs eat meat and grains/kibble, what type of eater is he?",
+          options: ["Omnivore", "Herbivore", "Plant only", "Fish only"],
           correctIndex: 0,
-          explanation: "Dogs are omnivores and can eat both meat and veggies/grains!"
+          explanation: "Omnivores eat both meat and plants!"
         },
         {
           id: 'q5',
           type: 'multiple-choice',
-          question: "Which animal is best adapted to live in the freezing Arctic snow?",
-          options: ["A desert camel", "A tropical parrot", "A polar bear with thick blubber", "Daddy Pig in shorts"],
-          correctIndex: 2,
-          explanation: "Polar bears have thick fat and warm fur for the freezing cold!"
+          question: "Which feature helps a polar bear survive freezing Arctic temperatures?",
+          options: ["Thick blubber and dense fur", "Bright pink feathers", "A long tail", "Sunscreen"],
+          correctIndex: 0,
+          explanation: "Thick fat and dense fur keep the polar bear warm!"
         }
       ]
     };

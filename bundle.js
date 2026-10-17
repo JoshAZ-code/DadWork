@@ -1,6 +1,5 @@
-// DadWork App - Complete Self-Contained Bundle
-// Works both locally (file://, localhost) and on any web hosting (Surge, Vercel, Netlify, etc.)
-// Zero external build tool dependencies, zero ES module CORS restrictions!
+// DadWork App - Complete Self-Contained Bundle (Multi-Page Packet & Video Scan Support)
+// Works locally (file://, localhost) and on any web hosting (GitHub Pages, Vercel, Netlify)
 
 (function() {
   'use strict';
@@ -50,7 +49,7 @@
       dadTone: 'Sarcastic-affectionate sports coach dad who loves gaming and superhero banter',
       dialogue: {
         welcome: [
-          "What's good, Caleb! Ready to drop a 40-point game on this homework?",
+          "What's good, Caleb! Ready to drop a 40-point game on this homework packet?",
           "Suit up, Avenger! Today's mission: conquering this study guide.",
           "Fortnite lobby is closed until this unit is 100% complete, captain!",
           "Time for the main event! In this corner: Middle School homework. In the other: The Champ!"
@@ -129,7 +128,7 @@
           "Bark Knight reporting for duty! Sniffing out 100% scores with Christian!"
         ],
         lessonIntro: [
-          "Alright little dude, Dad's pulling up a chair! Let's solve this like a Dog Man comic strip.",
+          "Alright little dude, Dad's pulling up a chair! Let's solve this packet like a Dog Man comic strip.",
           "Captain Man says heroes always read the instructions first before pressing the big red button!",
           "Even Daddy Pig knows how to do this one (and you know how silly his tummy is!). Check this out:"
         ],
@@ -727,7 +726,7 @@
   }
 
   // ==========================================
-  // 3. GEMINI API & SMART VISION SIMULATION
+  // 3. GEMINI API & SMART VISION ENGINE (MULTI-PAGE & VIDEO)
   // ==========================================
   const GEMINI_API_STORAGE_KEY = 'dadwork_gemini_api_key';
 
@@ -743,30 +742,34 @@
     }
   }
 
-  async function analyzeWorksheetImage(base64Data, mimeType, preferredStudentId) {
+  async function analyzeWorksheetPacket(pages, preferredStudentId) {
     const apiKey = getGeminiApiKey();
     if (!apiKey) {
-      return simulateImageAnalysis(preferredStudentId);
+      return simulateMultiPageAnalysis(pages, preferredStudentId);
     }
 
-    const base64Clean = base64Data.includes('base64,') ? base64Data.split('base64,')[1] : base64Data;
+    const pageCount = pages ? pages.length : 1;
     const promptText = `
 You are the AI engine for "DadWork", an interactive homework app built by a loving dad for his two sons:
-- Caleb: Middle School. Interests: Marvel movies, Soccer, WWE, NBA, NFL, Fortnite, Rocket League.
-- Christian: Elementary School. Interests: Henry Danger, Dandy's World (Roblox), Minions, Peppa Pig, Dog Man, Diary of a Wimpy Kid.
+- Caleb: Middle School. Interests: Marvel movies (Avengers, Spider-Man, Iron Man), Soccer & FIFA, WWE wrestling, NBA basketball, NFL football, video games (Fortnite, Rocket League).
+- Christian: Elementary School. Interests: TV shows (Henry Danger / Captain Man), Roblox games (Dandy's World), Minions movies (bananas, silly laughs), Peppa Pig (Daddy Pig muddy puddles), books (Dog Man by Dav Pilkey, Diary of a Wimpy Kid "Zoo-Wee Mama!").
 
-Analyze this homework/study guide image:
-1. Identify who this homework belongs to ("caleb" or "christian"). Default to "${preferredStudentId || 'christian'}".
-2. School Subject ("Math", "Spelling", "Vocabulary", "Science", "Social Studies").
-3. Title.
-4. Extracted study guide, 4-6 memorization cards, and a 5-10 question quiz.
+ANALYZE THIS MULTI-PAGE HOMEWORK PACKET / STUDY GUIDE (Containing ${pageCount} page(s) or scan):
+1. Review all pages in order.
+2. Identify who this homework belongs to (either "caleb" or "christian"). Look at student name handwriting, grade level, topic difficulty. Default to "${preferredStudentId || 'christian'}".
+3. Identify School Subject ("Math", "Spelling", "Vocabulary", "Science", "Social Studies", "Reading", etc.).
+4. Determine a clear Unit Title.
+5. Synthesize the whole packet:
+   a) A unified study guide / kitchen table lesson explaining how to perform all exercises across the packet.
+   b) 4 to 8 key memorization items / flashcards / vocabulary rules.
+   c) A comprehensive quiz with up to 10 questions (never more than 10) covering all sections of the packet.
 
 Return strict raw JSON with:
 {
   "studentId": "caleb" | "christian",
   "subject": "Math" | "Spelling" | "Science" | "...",
   "title": "Title",
-  "notes": "Extracted summary",
+  "notes": "Extracted summary of what was covered across the ${pageCount} pages",
   "studyGuide": {
     "summary": "...",
     "keyRules": ["Rule 1", "Rule 2", "Rule 3"],
@@ -790,17 +793,24 @@ Return strict raw JSON with:
 
     try {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+      const parts = [{ text: promptText }];
+      pages.forEach(p => {
+        const base64Clean = p.data.includes('base64,') ? p.data.split('base64,')[1] : p.data;
+        parts.push({
+          inline_data: {
+            mime_type: p.mimeType || 'image/jpeg',
+            data: base64Clean
+          }
+        });
+      });
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: promptText },
-              { inline_data: { mime_type: mimeType || 'image/jpeg', data: base64Clean } }
-            ]
-          }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 2500, responseMimeType: "application/json" }
+          contents: [{ parts }],
+          generationConfig: { temperature: 0.3, maxOutputTokens: 3000, responseMimeType: "application/json" }
         })
       });
 
@@ -813,72 +823,75 @@ Return strict raw JSON with:
       return JSON.parse(clean);
     } catch (e) {
       console.warn('Gemini request failed, falling back to smart simulation:', e);
-      return simulateImageAnalysis(preferredStudentId);
+      return simulateMultiPageAnalysis(pages, preferredStudentId);
     }
   }
 
-  function simulateImageAnalysis(preferredStudentId) {
-    if (preferredStudentId === 'caleb') {
+  function simulateMultiPageAnalysis(pages, preferredStudentId) {
+    const isCaleb = preferredStudentId === 'caleb';
+    const pageCount = pages ? pages.length : 1;
+
+    if (isCaleb) {
       return {
         studentId: 'caleb',
         subject: 'Math',
-        title: 'Middle School Geometry: Area & Perimeter',
-        notes: 'Worksheet on finding perimeter and area of soccer fields and polygons.',
+        title: `Middle School Algebra & Geometry (${pageCount}-Page Packet)`,
+        notes: `Combined study packet spanning ${pageCount} pages covering algebraic expressions and polygon areas.`,
         studyGuide: {
-          summary: "Perimeter is walking the entire sideline of a soccer pitch; Area is counting how much turf grass is inside!",
+          summary: "Balancing full-packet math problems is like executing a perfect set-piece in soccer or coordinating a 4-player Fortnite squad!",
           keyRules: [
-            "Perimeter: Add up ALL outer sides (P = 2L + 2W).",
-            "Area of Rectangle: Multiply Length times Width (A = L × W).",
-            "Area of Triangle: Half of the base times height (A = 1/2 × b × h)."
+            "Isolate the variable on one side by performing inverse operations.",
+            "Keep equations balanced: what you do to the left side, you must do to the right.",
+            "Check perimeter and area formulas: Perimeter walks the sideline; Area measures inside the turf!"
           ],
-          dadExample: "If an NFL endzone is 10 yards long and 50 yards wide: Area = 10 × 50 = 500 sq yards! Touchdown!"
+          dadExample: "If 3x + 12 = 36: first subtract 12 from both sides to get 3x = 24. Then divide by 3 to isolate x = 8. Boom! Goal from midfield!"
         },
         memorizationItems: [
-          { term: "Rectangle Area Formula", definition: "A = Length × Width", type: "flashcard" },
-          { term: "Triangle Area Formula", definition: "A = 1/2 × base × height", type: "flashcard" },
-          { term: "Perimeter", definition: "The total distance around the outside edge of a shape", type: "flashcard" },
-          { term: "Square Units", definition: "Units used for Area (e.g. cm², ft², yards²)", type: "flashcard" }
+          { term: "Inverse Operations", definition: "Operations that undo each other (Add ↔ Subtract, Multiply ↔ Divide)", type: "flashcard" },
+          { term: "Isolating Variables", definition: "Getting the unknown letter alone on one side of '='", type: "flashcard" },
+          { term: "Rectangle Area", definition: "Area = Length × Width", type: "flashcard" },
+          { term: "Triangle Area", definition: "Area = 1/2 × Base × Height", type: "flashcard" }
         ],
         quizQuestions: [
           {
             id: 'q1',
             type: 'multiple-choice',
-            question: "What is the area of a rectangle with length 8m and width 6m?",
-            options: ["48 square meters", "28 meters", "14 square meters", "36 square meters"],
+            question: "From Page 1 of the packet: Solve for x in 2x + 8 = 24",
+            options: ["x = 8", "x = 16", "x = 12", "x = 6"],
             correctIndex: 0,
-            explanation: "Area = 8 × 6 = 48 sq meters. Clean 3-pointer from downtown!"
+            explanation: "Subtract 8 to get 2x = 16, then divide by 2: x = 8. Clean 3-pointer!"
           },
           {
             id: 'q2',
             type: 'multiple-choice',
-            question: "Find the perimeter of a square where each side is 9 feet long.",
-            options: ["18 feet", "81 square feet", "36 feet", "27 feet"],
-            correctIndex: 2,
-            explanation: "Perimeter = 4 × 9 = 36 feet all the way around!"
+            question: "From Page 2: What is the area of a rectangle with length 12m and width 5m?",
+            options: ["60 square meters", "34 meters", "17 square meters", "50 square meters"],
+            correctIndex: 0,
+            explanation: "Area = 12 × 5 = 60 sq meters!"
           },
           {
             id: 'q3',
             type: 'multiple-choice',
-            question: "What is the area of a triangle with base = 10 cm and height = 6 cm? (1/2 × b × h)",
-            options: ["60 cm²", "30 cm²", "16 cm²", "32 cm²"],
-            correctIndex: 1,
-            explanation: "1/2 of 10 is 5; 5 × 6 = 30 cm²! Calculated!"
+            question: "Solve for y: y / 4 = 9",
+            options: ["y = 36", "y = 13", "y = 5", "y = 28"],
+            correctIndex: 0,
+            explanation: "Multiply both sides by 4: 9 × 4 = 36!"
           },
           {
             id: 'q4',
             type: 'multiple-choice',
-            question: "If a FIFA soccer pitch has sides of 100 meters and 70 meters, what is the total perimeter?",
-            options: ["340 meters", "170 meters", "7,000 square meters", "240 meters"],
+            question: "If a soccer field has sides of 110m and 75m, what is the total perimeter?",
+            options: ["370 meters", "185 meters", "8,250 square meters", "295 meters"],
             correctIndex: 0,
-            explanation: "Perimeter = 100 + 70 + 100 + 70 = 340 meters! World Cup ready!"
+            explanation: "Perimeter = 110 + 75 + 110 + 75 = 370 meters!"
           },
           {
             id: 'q5',
             type: 'multiple-choice',
-            question: "Which of the following units represents an AREA measurement?",
-            options: ["14 inches", "25 square feet (ft²)", "10 pounds", "32 seconds"],
-            correctIndex: 1,
-            explanation: "Area is always measured in square units!"
+            question: "What is the inverse of multiplying by 7?",
+            options: ["Dividing by 7", "Subtracting 7", "Adding 7", "Squaring 7"],
+            correctIndex: 0,
+            explanation: "Division is the inverse of multiplication!"
           }
         ]
       };
@@ -886,29 +899,28 @@ Return strict raw JSON with:
       return {
         studentId: 'christian',
         subject: 'Science',
-        title: 'Elementary Science: Animals & Habitats',
-        notes: 'Study sheet on animal coverings, herbivores vs carnivores, and habitats.',
+        title: `Elementary Science: Animal Habitats & Lifecycles (${pageCount}-Page Packet)`,
+        notes: `Complete multi-page study packet covering animal habitats, food chains, and adaptations.`,
         studyGuide: {
-          summary: "Animals adapt to their environment just like Toons use special items in Dandy's World!",
+          summary: "This whole packet shows how animals survive and adapt in nature—just like Toons grouping together in Dandy's World!",
           keyRules: [
-            "Herbivores only eat plants and fruits (like silly Minions eating bananas!).",
-            "Carnivores eat other animals/meat (like Petey the Cat chasing a fish!).",
-            "Omnivores eat BOTH plants and meat (like humans and dogs!).",
-            "Camouflage helps animals hide in their surroundings to stay safe from danger."
+            "Herbivores eat plants (like silly Minions eating bananas!).",
+            "Carnivores eat meat; Omnivores eat both plants and meat.",
+            "Camouflage helps animals hide from predators like Bark Knight hiding in shadows."
           ],
-          dadExample: "A polar bear has thick white fur. The white fur camouflages in snow, and the thick fat keeps it warm while splashing in icy water better than muddy puddles!"
+          dadExample: "A desert camel has long eyelashes to keep sand out of its eyes and humps to store fat for long trips without water. Zoo-Wee Mama!"
         },
         memorizationItems: [
-          { term: "Herbivore", definition: "An animal that eats only plants (like cows and rabbits)", type: "flashcard" },
-          { term: "Carnivore", definition: "An animal that eats only meat (like lions)", type: "flashcard" },
-          { term: "Omnivore", definition: "An animal that eats both plants and animals (like bears)", type: "flashcard" },
-          { term: "Camouflage", definition: "Colors or patterns that help an animal hide in its habitat", type: "flashcard" }
+          { term: "Herbivore", definition: "An animal that eats only plants", type: "flashcard" },
+          { term: "Carnivore", definition: "An animal that eats only meat", type: "flashcard" },
+          { term: "Omnivore", definition: "An animal that eats both plants and animals", type: "flashcard" },
+          { term: "Camouflage", definition: "Patterns or colors that help an animal hide", type: "flashcard" }
         ],
         quizQuestions: [
           {
             id: 'q1',
             type: 'multiple-choice',
-            question: "An animal that only eats plants and fruits (like a Minion eating bananas) is called a:",
+            question: "From Page 1 of the packet: An animal that eats only plants and fruits is called a:",
             options: ["Carnivore", "Herbivore", "Robot", "Superhero"],
             correctIndex: 1,
             explanation: "Herbivores eat plants! Bananas count!"
@@ -916,34 +928,34 @@ Return strict raw JSON with:
           {
             id: 'q2',
             type: 'multiple-choice',
-            question: "What is an animal's natural home called?",
-            options: ["A Man Cave", "A Habitat", "A Playground", "A Supermarket"],
+            question: "From Page 2: What is an animal's natural home called?",
+            options: ["A Man Cave", "A Habitat", "A Supermarket", "A Garage"],
             correctIndex: 1,
-            explanation: "A Habitat is where an animal naturally lives and stays safe!"
+            explanation: "A Habitat is where an animal naturally lives and finds food!"
           },
           {
             id: 'q3',
             type: 'multiple-choice',
             question: "Why do chameleons change colors to match leaves and branches?",
-            options: ["To show off their fashion", "Camouflage to hide from predators", "Because they are sleepy", "To jump in muddy puddles"],
-            correctIndex: 1,
-            explanation: "Camouflage helps them hide! Zoo-Wee Mama!"
+            options: ["Camouflage to stay safe from predators", "Because they are cold", "To dance", "To jump in puddles"],
+            correctIndex: 0,
+            explanation: "Camouflage keeps them hidden! Supa Buddy work!"
           },
           {
             id: 'q4',
             type: 'multiple-choice',
-            question: "Dog Man is a dog-human superhero. If dogs eat meat and kibble, what kind of eater are they?",
-            options: ["Omnivore (eats both)", "Carnivore only", "Plant eater only", "Dinosaur"],
+            question: "Dog Man is a dog-human superhero. Since dogs eat meat and grains/kibble, what type of eater is he?",
+            options: ["Omnivore", "Herbivore", "Plant only", "Fish only"],
             correctIndex: 0,
-            explanation: "Dogs are omnivores and can eat both meat and veggies/grains!"
+            explanation: "Omnivores eat both meat and plants!"
           },
           {
             id: 'q5',
             type: 'multiple-choice',
-            question: "Which animal is best adapted to live in the freezing Arctic snow?",
-            options: ["A desert camel", "A tropical parrot", "A polar bear with thick blubber", "Daddy Pig in shorts"],
-            correctIndex: 2,
-            explanation: "Polar bears have thick fat and warm fur for the freezing cold!"
+            question: "Which feature helps a polar bear survive freezing Arctic temperatures?",
+            options: ["Thick blubber and dense fur", "Bright pink feathers", "A long tail", "Sunscreen"],
+            correctIndex: 0,
+            explanation: "Thick fat and dense fur keep the polar bear warm!"
           }
         ]
       };
@@ -1349,7 +1361,7 @@ Return strict raw JSON with:
   }
 
   // ==========================================
-  // 5. STUDY VIEW RENDERER
+  // 5. STUDY VIEW RENDERER (WITH PACKET PAGES VIEWER)
   // ==========================================
   function renderStudyView(unit, student) {
     const guide = unit.studyGuide || {
@@ -1360,6 +1372,7 @@ Return strict raw JSON with:
     const memorizationItems = unit.memorizationItems || [];
     const isSpelling = unit.subject === 'Spelling';
     const isMath = unit.subject === 'Math';
+    const packetPages = unit.sourcePages || (unit.sourcePhotoUrl ? [unit.sourcePhotoUrl] : []);
 
     return `
       <div class="study-session-container space-y-6 max-w-4xl mx-auto">
@@ -1368,10 +1381,35 @@ Return strict raw JSON with:
             <span>←</span> Back to All Homework Units
           </button>
           <div class="flex items-center gap-2">
+            ${packetPages.length > 0 ? `
+              <button onclick="window.DadApp.togglePacketViewer()" class="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm">
+                <span>📄</span>
+                <span>Original Packet (${packetPages.length} Pages)</span>
+              </button>
+            ` : ''}
             <button onclick="window.DadApp.copyUnitShareLink('${unit.id}')" class="px-3 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm">
               <span>📤</span>
               <span>Send Link to ${student.name}</span>
             </button>
+          </div>
+        </div>
+
+        <!-- Original Packet Modal / Drawer (if requested) -->
+        <div id="packet-original-viewer" class="hidden bg-white p-5 rounded-3xl border border-slate-200 shadow-xl space-y-4">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+            <h4 class="font-black text-slate-900 text-sm flex items-center gap-2">
+              <span>📄</span>
+              <span>Original Scanned Packet Pages (${packetPages.length})</span>
+            </h4>
+            <button onclick="window.DadApp.togglePacketViewer()" class="text-xs font-bold text-slate-400 hover:text-slate-700">Close ✕</button>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto p-1">
+            ${packetPages.map((src, i) => `
+              <div class="rounded-xl border border-slate-200 overflow-hidden bg-slate-50 text-center">
+                <img src="${src}" class="w-full h-36 object-contain bg-slate-900/5 cursor-pointer" onclick="window.open('${src}')" title="Click to view full size" />
+                <div class="text-[10px] font-bold text-slate-600 py-1 bg-white border-t border-slate-100">Page ${i + 1}</div>
+              </div>
+            `).join('')}
           </div>
         </div>
 
@@ -1575,7 +1613,7 @@ Return strict raw JSON with:
   }
 
   // ==========================================
-  // 6. MAIN DADWORK APPLICATION COORDINATOR
+  // 6. MAIN DADWORK APPLICATION COORDINATOR (WITH MULTI-PAGE PACKET TRAY)
   // ==========================================
   const STORAGE_KEY_UNITS = 'dadwork_study_units_v1';
   const STORAGE_KEY_STUDENT = 'dadwork_selected_student';
@@ -1588,12 +1626,13 @@ Return strict raw JSON with:
       this.activeQuizRunner = null;
       this.selectedSubjectFilter = 'ALL';
 
+      // Multi-Page Packet Tray state
+      this.packetPages = [];
+
       this.units = this.loadUnits();
       this.scratchpadCtx = null;
 
-      // Check if URL has shared unit parameters (e.g. Dad sent link to son)
       this.checkForSharedUrlUnit();
-
       this.init();
     }
 
@@ -1639,7 +1678,6 @@ Return strict raw JSON with:
         const urlParams = new URLSearchParams(window.location.search);
         const hash = window.location.hash;
 
-        // Mode 1: Unit ID in query string (for preloaded or already-saved units)
         const paramUnitId = urlParams.get('unit');
         const paramStudent = urlParams.get('student');
         if (paramStudent && STUDENTS[paramStudent]) {
@@ -1656,7 +1694,6 @@ Return strict raw JSON with:
           }
         }
 
-        // Mode 2: Full unit encoded in hash (#unit_data=...)
         if (hash && hash.includes('unit_data=')) {
           const base64Str = hash.split('unit_data=')[1];
           const jsonStr = decodeURIComponent(escape(atob(base64Str)));
@@ -1670,7 +1707,6 @@ Return strict raw JSON with:
             this.activeUnitId = sharedUnit.id;
             this.currentStudentId = sharedUnit.studentId || 'christian';
             this.currentView = 'study';
-            // Clean hash
             history.replaceState(null, '', window.location.pathname);
           }
         }
@@ -1716,7 +1752,7 @@ Return strict raw JSON with:
                 <span class="text-lg font-black tracking-tight text-slate-900">DadWork</span>
                 <span class="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">Homework Coach</span>
               </div>
-              <div class="text-[11px] text-slate-500 font-medium">Study Guides, Quizzes & Dad Humor</div>
+              <div class="text-[11px] text-slate-500 font-medium">Multi-Page Packets, Quizzes & Dad Humor</div>
             </div>
           </div>
 
@@ -1735,7 +1771,7 @@ Return strict raw JSON with:
             <button onclick="window.DadApp.navigate('upload')" 
                     class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md transition-all active:scale-95 flex items-center gap-1.5">
               <span>📷</span>
-              <span>Add Homework</span>
+              <span>Add Homework Packet</span>
             </button>
           </div>
         </div>
@@ -1883,7 +1919,7 @@ Return strict raw JSON with:
               </div>
               <button onclick="window.DadApp.navigate('upload')" class="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-all active:scale-95 flex items-center gap-1.5 self-start sm:self-auto">
                 <span>+</span>
-                <span>Snap / Upload New Homework</span>
+                <span>Snap / Upload Multi-Page Packet</span>
               </button>
             </div>
 
@@ -1893,6 +1929,7 @@ Return strict raw JSON with:
                 const latest = atts[atts.length - 1];
                 const first = atts[0];
                 const growth = latest && first ? (latest.percentage - first.percentage) : 0;
+                const pageCount = unit.sourcePages ? unit.sourcePages.length : (unit.sourcePhotoUrl ? 1 : 0);
 
                 return `
                   <div class="p-5 rounded-2xl border border-slate-200 hover:border-indigo-400 hover:shadow-md transition-all bg-white flex flex-col justify-between space-y-4">
@@ -1901,7 +1938,10 @@ Return strict raw JSON with:
                         <span class="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${unit.subject === 'Math' ? 'bg-indigo-100 text-indigo-700' : unit.subject === 'Spelling' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}">
                           ${unit.subject}
                         </span>
-                        <span class="text-xs text-slate-400 font-medium">${unit.dateAdded}</span>
+                        <div class="flex items-center gap-2">
+                          ${pageCount > 1 ? `<span class="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">📄 ${pageCount} Pages</span>` : ''}
+                          <span class="text-xs text-slate-400 font-medium">${unit.dateAdded}</span>
+                        </div>
                       </div>
 
                       <h3 class="font-extrabold text-slate-900 text-base leading-snug hover:text-indigo-600 cursor-pointer" onclick="window.DadApp.openStudyUnit('${unit.id}')">
@@ -1965,7 +2005,7 @@ Return strict raw JSON with:
             </div>
             <button onclick="window.DadApp.navigate('upload')" class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition-all active:scale-95 flex items-center gap-2 self-start sm:self-auto">
               <span>📷</span>
-              <span>Snap / Upload New Homework</span>
+              <span>Snap / Upload Multi-Page Packet</span>
             </button>
           </div>
 
@@ -2035,6 +2075,13 @@ Return strict raw JSON with:
     openStudyUnit(unitId) {
       this.activeUnitId = unitId;
       this.navigate('study', unitId);
+    }
+
+    togglePacketViewer() {
+      const viewer = document.getElementById('packet-original-viewer');
+      if (viewer) {
+        viewer.classList.toggle('hidden');
+      }
     }
 
     renderStudy() {
@@ -2249,132 +2296,229 @@ Return strict raw JSON with:
       `;
     }
 
+    // ==========================================
+    // MULTI-PAGE PACKET INTAKE SYSTEM
+    // ==========================================
     renderUploadView() {
       const student = this.getStudent();
+      const pageCount = this.packetPages.length;
 
       return `
-        <div class="max-w-2xl mx-auto space-y-6">
+        <div class="max-w-3xl mx-auto space-y-6">
           <div class="text-center space-y-2">
-            <div class="text-4xl mb-1">📸</div>
-            <h1 class="text-2xl font-black text-slate-900">Upload Homework or Study Guide</h1>
-            <p class="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
-              Take a photo with your phone camera or select an image from Google Photos / gallery. DadWork will read the page, identify student & subject, and create a custom study unit!
+            <div class="text-4xl mb-1">📸 ➔ 📑</div>
+            <h1 class="text-2xl sm:text-3xl font-black text-slate-900">Upload Homework Packet</h1>
+            <p class="text-xs sm:text-sm text-slate-500 max-w-lg mx-auto">
+              Snap each page one-by-one, select multiple pages from Google Photos/Gallery, or record a video scan! DadWork will combine the full packet into a single study unit.
             </p>
           </div>
 
-          <div class="bg-white rounded-3xl p-6 sm:p-8 border-2 border-dashed border-slate-300 hover:border-indigo-500 transition-all text-center space-y-4 shadow-sm"
-               id="upload-dropzone"
-               ondragover="event.preventDefault(); this.classList.add('border-indigo-500', 'bg-indigo-50/20');"
-               ondragleave="this.classList.remove('border-indigo-500', 'bg-indigo-50/20');"
-               ondrop="window.DadApp.handleFileDrop(event)">
-            
-            <div class="w-16 h-16 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-3xl mx-auto">
-              📷
+          <!-- Packet Status & Action Bar -->
+          <div class="bg-white rounded-3xl p-5 sm:p-7 border border-slate-200 shadow-sm space-y-5">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div class="flex items-center gap-2">
+                <span class="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center">
+                  ${pageCount}
+                </span>
+                <span class="text-sm font-black text-slate-900">
+                  ${pageCount === 0 ? 'No Pages Captured Yet' : `${pageCount} Page${pageCount > 1 ? 's' : ''} in this Packet`}
+                </span>
+              </div>
+
+              ${pageCount > 0 ? `
+                <button onclick="window.DadApp.clearPacketPages()" class="text-xs font-bold text-rose-600 hover:text-rose-800 transition-all flex items-center gap-1">
+                  <span>🗑️</span>
+                  <span>Clear All</span>
+                </button>
+              ` : ''}
             </div>
 
-            <div class="space-y-1">
-              <h3 class="font-bold text-slate-800 text-base">Take Photo or Choose from Google Photos</h3>
-              <p class="text-xs text-slate-500">Supports JPG, PNG, WebP</p>
-            </div>
+            <!-- Page Thumbnail Tray Grid -->
+            ${pageCount > 0 ? `
+              <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                ${this.packetPages.map((p, idx) => `
+                  <div class="relative group rounded-2xl border-2 border-indigo-200 bg-slate-50 overflow-hidden shadow-sm flex flex-col justify-between">
+                    <div class="relative bg-slate-900/5 h-36 flex items-center justify-center overflow-hidden">
+                      ${p.isVideo ? `
+                        <div class="text-center p-3">
+                          <span class="text-3xl">🎥</span>
+                          <div class="text-[10px] font-bold text-slate-600 mt-1 truncate max-w-[100px]">${p.name || 'Video Scan'}</div>
+                        </div>
+                      ` : `
+                        <img src="${p.data}" class="w-full h-full object-cover" />
+                      `}
+                      <button onclick="window.DadApp.removePacketPage(${idx})" class="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-rose-600 text-white font-black text-xs flex items-center justify-center shadow-md hover:bg-rose-700 transition-all" title="Remove this page">
+                        ✕
+                      </button>
+                    </div>
+                    <div class="p-2 bg-white text-center border-t border-slate-100 flex items-center justify-between text-xs">
+                      <span class="font-bold text-slate-800">Page ${idx + 1}</span>
+                      <span class="text-[10px] text-slate-400 font-mono">${p.isVideo ? 'VIDEO' : 'IMAGE'}</span>
+                    </div>
+                  </div>
+                `).join('')}
 
-            <div class="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-              <label class="cursor-pointer px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 flex items-center gap-2">
-                <span>📸 Snap with Camera</span>
-                <input type="file" accept="image/*" capture="environment" class="hidden" onchange="window.DadApp.handleFileSelected(event)" />
+                <!-- Add Next Page Card -->
+                <label class="cursor-pointer border-2 border-dashed border-indigo-300 hover:border-indigo-500 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-1 bg-indigo-50/20 hover:bg-indigo-50/50 transition-all h-44">
+                  <span class="text-2xl text-indigo-600">+</span>
+                  <span class="text-xs font-bold text-indigo-700">Snap Page ${pageCount + 1}</span>
+                  <input type="file" accept="image/*" capture="environment" class="hidden" onchange="window.DadApp.handlePacketFileInput(event)" />
+                </label>
+              </div>
+            ` : `
+              <!-- Empty State Dropzone -->
+              <div class="border-2 border-dashed border-slate-300 rounded-2xl p-6 text-center space-y-3"
+                   ondragover="event.preventDefault();"
+                   ondrop="window.DadApp.handlePacketDrop(event)">
+                <div class="text-3xl">📑</div>
+                <div class="text-sm font-bold text-slate-700">Add the pages of their study packet</div>
+                <div class="text-xs text-slate-400">Works with photos of multiple pages or a video walkthrough!</div>
+              </div>
+            `}
+
+            <!-- Intake Buttons Toolbar -->
+            <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <!-- 1. Snap Page with Camera -->
+              <label class="cursor-pointer px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 flex items-center gap-2">
+                <span>📸</span>
+                <span>${pageCount === 0 ? 'Snap Page 1' : 'Snap Next Page'}</span>
+                <input type="file" accept="image/*" capture="environment" class="hidden" onchange="window.DadApp.handlePacketFileInput(event)" />
               </label>
 
-              <label class="cursor-pointer px-5 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm border border-slate-200 transition-all active:scale-95 flex items-center gap-2">
-                <span>🖼️ Pick from Photos / Gallery</span>
-                <input type="file" accept="image/*" class="hidden" onchange="window.DadApp.handleFileSelected(event)" />
+              <!-- 2. Pick Multiple Pages from Photos -->
+              <label class="cursor-pointer px-4 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm border border-slate-200 transition-all active:scale-95 flex items-center gap-2">
+                <span>🖼️</span>
+                <span>Select Multiple Pages from Photos</span>
+                <input type="file" accept="image/*" multiple class="hidden" onchange="window.DadApp.handlePacketFileInput(event)" />
+              </label>
+
+              <!-- 3. Video Scan of Packet -->
+              <label class="cursor-pointer px-4 py-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs sm:text-sm border border-amber-200 transition-all active:scale-95 flex items-center gap-2" title="Record or upload a quick video flipping through the pages">
+                <span>🎥</span>
+                <span>Record Video Scan</span>
+                <input type="file" accept="video/*" capture="environment" class="hidden" onchange="window.DadApp.handlePacketFileInput(event)" />
               </label>
             </div>
           </div>
 
-          <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200 flex items-center justify-between">
-            <div class="text-xs text-slate-600">
-              <strong>Target Child Hint:</strong> Auto-detection reads handwriting, but defaults to:
+          <!-- Target Student & Analyze Action Bar -->
+          <div class="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-bold text-slate-500 uppercase">Assigned To:</span>
+              <div class="flex items-center gap-1.5">
+                <button onclick="window.DadApp.switchStudent('christian')" class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${this.currentStudentId === 'christian' ? 'bg-amber-500 text-white shadow-sm' : 'bg-slate-100 text-slate-600'}">
+                  Christian (Elementary) 🦸‍♂️
+                </button>
+                <button onclick="window.DadApp.switchStudent('caleb')" class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${this.currentStudentId === 'caleb' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600'}">
+                  Caleb (Middle School) ⚡
+                </button>
+              </div>
             </div>
-            <div class="flex items-center gap-2">
-              <button onclick="window.DadApp.switchStudent('christian')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${this.currentStudentId === 'christian' ? 'bg-amber-500 text-white' : 'bg-white border text-slate-600'}">
-                Christian
+
+            ${pageCount > 0 ? `
+              <button onclick="window.DadApp.startPacketAnalysis()" class="px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
+                <span>🚀 Analyze Whole Packet (${pageCount} Pages) →</span>
               </button>
-              <button onclick="window.DadApp.switchStudent('caleb')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${this.currentStudentId === 'caleb' ? 'bg-blue-600 text-white' : 'bg-white border text-slate-600'}">
-                Caleb
-              </button>
-            </div>
+            ` : `
+              <div class="text-xs text-slate-400 italic">Add at least 1 page to start analysis</div>
+            `}
           </div>
 
+          <!-- Loading / Analyzing Spinner -->
           <div id="upload-analyzing-spinner" class="hidden bg-white rounded-3xl p-8 border border-slate-200 shadow-xl text-center space-y-4">
             <div class="inline-block animate-spin text-5xl">⚙️</div>
-            <h3 class="text-lg font-black text-slate-900" id="analyzing-status-title">DadWork AI is Analyzing the Worksheet...</h3>
+            <h3 class="text-lg font-black text-slate-900" id="analyzing-status-title">DadWork AI is Analyzing the Entire Packet...</h3>
             <p class="text-xs text-slate-500 max-w-sm mx-auto" id="analyzing-status-sub">
-              Extracting problems, building kitchen table analogies, and prepping the interactive quiz!
+              Reading all pages in sequence, building customized Kitchen Table analogies, and assembling the comprehensive quiz!
             </p>
           </div>
 
+          <!-- Confirmation Modal / Drawer -->
           <div id="upload-confirmation-modal" class="hidden bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xl space-y-5"></div>
         </div>
       `;
     }
 
-    handleFileDrop(e) {
-      e.preventDefault();
-      const dt = e.dataTransfer;
-      if (dt && dt.files && dt.files.length > 0) {
-        this.processImageFile(dt.files[0]);
-      }
-    }
-
-    handleFileSelected(e) {
+    handlePacketFileInput(e) {
       if (e.target && e.target.files && e.target.files.length > 0) {
-        this.processImageFile(e.target.files[0]);
+        this.addFilesToPacket(Array.from(e.target.files));
       }
     }
 
-    processImageFile(file) {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const base64Data = event.target.result;
-        const mimeType = file.type || 'image/jpeg';
-        await this.runWorksheetAnalysis(base64Data, mimeType);
-      };
-      reader.readAsDataURL(file);
+    handlePacketDrop(e) {
+      e.preventDefault();
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        this.addFilesToPacket(Array.from(e.dataTransfer.files));
+      }
     }
 
-    async runWorksheetAnalysis(base64Data, mimeType) {
+    addFilesToPacket(files) {
+      let readCount = 0;
+      files.forEach(file => {
+        const isVideo = file.type.startsWith('video/');
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          this.packetPages.push({
+            data: event.target.result,
+            mimeType: file.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
+            name: file.name,
+            isVideo: isVideo
+          });
+          readCount += 1;
+          if (readCount === files.length) {
+            this.renderCurrentView();
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    removePacketPage(index) {
+      this.packetPages.splice(index, 1);
+      this.renderCurrentView();
+    }
+
+    clearPacketPages() {
+      this.packetPages = [];
+      this.renderCurrentView();
+    }
+
+    async startPacketAnalysis() {
+      if (this.packetPages.length === 0) return;
+
       const spinner = document.getElementById('upload-analyzing-spinner');
-      const dropzone = document.getElementById('upload-dropzone');
       const confirmBox = document.getElementById('upload-confirmation-modal');
 
-      if (dropzone) dropzone.classList.add('hidden');
       if (spinner) spinner.classList.remove('hidden');
 
       try {
-        const result = await analyzeWorksheetImage(base64Data, mimeType, this.currentStudentId);
+        const result = await analyzeWorksheetPacket(this.packetPages, this.currentStudentId);
         if (spinner) spinner.classList.add('hidden');
         if (confirmBox) {
           confirmBox.classList.remove('hidden');
-          this.renderUploadConfirmation(result, base64Data);
+          this.renderUploadConfirmation(result);
         }
       } catch (err) {
         if (spinner) spinner.classList.add('hidden');
-        if (dropzone) dropzone.classList.remove('hidden');
-        alert(`Could not analyze worksheet: ${err.message}. DadWork will use smart simulation.`);
+        alert(`Could not analyze packet: ${err.message}. DadWork will use smart simulation.`);
       }
     }
 
-    renderUploadConfirmation(parsedData, base64Data) {
+    renderUploadConfirmation(parsedData) {
       const confirmBox = document.getElementById('upload-confirmation-modal');
       if (!confirmBox) return;
+
+      const pageThumbnails = this.packetPages.map(p => p.data);
 
       window._pendingNewUnit = {
         id: `unit_${parsedData.studentId}_${Date.now()}`,
         studentId: parsedData.studentId || this.currentStudentId,
         subject: parsedData.subject || 'Math',
         title: parsedData.title || 'New Study Unit',
-        notes: parsedData.notes || 'Captured homework worksheet',
+        notes: parsedData.notes || `Multi-page homework packet (${this.packetPages.length} pages)`,
         dateAdded: new Date().toISOString().split('T')[0],
-        sourcePhotoUrl: base64Data,
+        sourcePhotoUrl: pageThumbnails[0] || null,
+        sourcePages: pageThumbnails,
         studyGuide: parsedData.studyGuide,
         memorizationItems: parsedData.memorizationItems || [],
         quizQuestions: parsedData.quizQuestions || [],
@@ -2387,9 +2531,21 @@ Return strict raw JSON with:
             <div class="flex items-center gap-2">
               <span class="text-2xl">✅</span>
               <div>
-                <h3 class="text-lg font-black text-slate-900">Worksheet Analyzed! Does this look right?</h3>
-                <p class="text-xs text-slate-500">Quick Dad check before generating study units & quizzes</p>
+                <h3 class="text-lg font-black text-slate-900">Entire Packet Analyzed! Does this look right?</h3>
+                <p class="text-xs text-slate-500">Synthesized ${this.packetPages.length} page(s) into one cohesive unit</p>
               </div>
+            </div>
+          </div>
+
+          <!-- Mini Gallery of Included Pages -->
+          <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200">
+            <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Packet Pages Included (${this.packetPages.length})</div>
+            <div class="flex items-center gap-2 overflow-x-auto pb-1">
+              ${this.packetPages.map((p, idx) => `
+                <div class="w-16 h-16 rounded-xl border border-slate-300 overflow-hidden flex-shrink-0 bg-white">
+                  ${p.isVideo ? '<div class="w-full h-full flex items-center justify-center text-xl">🎥</div>' : `<img src="${p.data}" class="w-full h-full object-cover" />`}
+                </div>
+              `).join('')}
             </div>
           </div>
 
@@ -2425,7 +2581,7 @@ Return strict raw JSON with:
 
             <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-1">
               <div><strong>Summary:</strong> ${window._pendingNewUnit.studyGuide?.summary}</div>
-              <div class="text-slate-500">✨ Generated: ${window._pendingNewUnit.memorizationItems.length} memorization cards & ${window._pendingNewUnit.quizQuestions.length} quiz questions.</div>
+              <div class="text-slate-500">✨ Generated: ${window._pendingNewUnit.memorizationItems.length} memorization cards & ${window._pendingNewUnit.quizQuestions.length} quiz questions covering the full packet.</div>
             </div>
           </div>
 
@@ -2447,6 +2603,9 @@ Return strict raw JSON with:
       this.units.unshift(unit);
       this.saveUnits();
 
+      // Clear the packet upload tray for the next assignment
+      this.packetPages = [];
+
       if (unit.studentId !== this.currentStudentId) {
         this.switchStudent(unit.studentId);
       }
@@ -2454,7 +2613,6 @@ Return strict raw JSON with:
       this.openStudyUnit(unit.id);
     }
 
-    // --- SHAREABLE LINK GENERATOR (SEND TO CALEB / CHRISTIAN) ---
     copyUnitShareLink(unitId) {
       const unit = this.units.find(u => u.id === unitId);
       if (!unit) return;
@@ -2462,21 +2620,22 @@ Return strict raw JSON with:
       const student = STUDENTS[unit.studentId] || this.getStudent();
       let shareUrl = '';
 
-      // If unit is in initial units, clean query param works
       const isInitial = INITIAL_UNITS.some(u => u.id === unit.id);
       if (isInitial) {
         shareUrl = `${window.location.origin}${window.location.pathname}?unit=${unit.id}&student=${unit.studentId}`;
       } else {
-        // Encode full unit JSON in hash for instant cross-device opening
-        const jsonStr = JSON.stringify(unit);
+        const unitCopy = { ...unit };
+        // Omit giant base64 images from URL hash to keep URL compact and snappy
+        delete unitCopy.sourcePages;
+        delete unitCopy.sourcePhotoUrl;
+        const jsonStr = JSON.stringify(unitCopy);
         const base64Str = btoa(unescape(encodeURIComponent(jsonStr)));
         shareUrl = `${window.location.origin}${window.location.pathname}#unit_data=${base64Str}`;
       }
 
-      // Copy to clipboard
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(shareUrl).then(() => {
-          alert(`Link copied to clipboard for ${student.name}!\n\nSend this link to ${student.name}'s iPad, phone, or laptop so they can study and take the quiz.`);
+          alert(`Link copied to clipboard for ${student.name}!\n\nSend this link to ${student.name}'s iPad, phone, or laptop.`);
         }).catch(() => {
           prompt(`Copy this link to send to ${student.name}:`, shareUrl);
         });
@@ -2569,7 +2728,7 @@ Return strict raw JSON with:
               <span class="text-2xl">🤖</span>
               <div>
                 <h3 class="font-bold text-slate-900 text-sm">Google Gemini Vision API Key</h3>
-                <p class="text-xs text-slate-500">Optional. Enter your key for custom photo analysis.</p>
+                <p class="text-xs text-slate-500">Optional. Enter your key for custom multi-page photo & video analysis.</p>
               </div>
             </div>
 
