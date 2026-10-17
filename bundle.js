@@ -1,5 +1,5 @@
-// DadWork App - Complete Self-Contained Bundle (Multi-Page Packet & Video Scan Support)
-// Works locally (file://, localhost) and on any web hosting (GitHub Pages, Vercel, Netlify)
+// DadWork App - Complete Self-Contained Bundle
+// Includes: Multi-Page Packet Tray, Video Scans, Visual Biological Diagram Labeling Engine & Cross-Device Sharing
 
 (function() {
   'use strict';
@@ -123,7 +123,7 @@
       dialogue: {
         welcome: [
           "Zoo-Wee Mama, Christian! Look who entered the study cave today!",
-          "Captain Man and Kid Danger need your super brain to crack this homework mission!",
+          "Captain Man and Kid Danger need your super brain to crack this homework packet!",
           "BEE-DOO BEE-DOO! Homework alert! Get your banana snack and let's roll!",
           "Bark Knight reporting for duty! Sniffing out 100% scores with Christian!"
         ],
@@ -172,7 +172,346 @@
     }
   };
 
+  // ==========================================
+  // 2. BIOLOGICAL DIAGRAM ENGINES & DATA
+  // ==========================================
+  const BIOLOGICAL_DIAGRAMS = {
+    insect: {
+      id: 'insect',
+      title: "Insect & Bug Anatomy (3 Main Body Regions)",
+      description: "Every true insect has 3 main body segments, 2 antennae, and 6 jointed legs attached to the middle thorax!",
+      parts: [
+        { id: 'A', name: 'Antennae (Feelers)', role: 'Sensory feelers used for smelling, touching, and sensing vibrations/danger', calebDadTip: "Like Spider-Man's Spidey-Sense or a FIFA radar tracking defenders!", christianDadTip: "Like Captain Man's super radar in the Man Cave sniffing out danger! BEE-DOO!" },
+        { id: 'B', name: 'Head', role: 'Front body segment containing compound eyes, mouthparts, and the insect brain', calebDadTip: "The command center where Tony Stark's HUD interface sits!", christianDadTip: "Where the bug wears its Minion goggles to look for sweet bananas!" },
+        { id: 'C', name: 'Thorax (Middle Section)', role: 'The muscular engine segment! ALL 6 legs and wings are attached right here', calebDadTip: "The turbo engine of a Rocket League Octane car! All 6 wheels/legs plug in here.", christianDadTip: "Kid Danger's jetpack zone! Holds all 6 legs so the bug can zoom!" },
+        { id: 'D', name: 'Abdomen (Rear Segment)', role: 'The largest rear section containing the stomach, heart, and sting/defense', calebDadTip: "The fuel tank where the bug digests snacks—like drinking a Fortnite chug jug!", christianDadTip: "The bug's big tummy! Just like Daddy Pig's muddy puddle tummy!" },
+        { id: 'E', name: '6 Jointed Legs', role: '3 pairs of jointed legs attached exclusively to the thorax for climbing and running', calebDadTip: "6 legs for maximum agility—even Messi couldn't dribble past that defense!", christianDadTip: "Dog Man counted: 1, 2, 3, 4, 5, 6 paws! Twice as many as Bark Knight!" }
+      ]
+    },
+    flower: {
+      id: 'flower',
+      title: "Parts of a Flower & Plant Reproduction",
+      description: "Flowers have specialized organs for attracting pollinators, creating pollen, and growing seeds!",
+      parts: [
+        { id: 'A', name: 'Petal', role: 'Brightly colored, scented leaf that attracts bees, butterflies, and pollinators', calebDadTip: "Like the flashy neon skins in Fortnite or vibrant team kits in soccer!", christianDadTip: "Bright and colorful like a giant bunch of Minion bananas! Zoo-Wee Mama!" },
+        { id: 'B', name: 'Stamen (Anther & Filament)', role: 'The male reproductive organ that creates yellow powdery pollen', calebDadTip: "The striker on the pitch firing off pollen shots toward the goal!", christianDadTip: "The yellow pollen powder shakers! Rowley would sneeze if he smelled it!" },
+        { id: 'C', name: 'Pistil / Carpel (Stigma & Ovary)', role: 'The sticky center tube that catches pollen to fertilize baby seeds', calebDadTip: "The goalkeeper catching the cross! Keeps the seeds safe inside the ovary.", christianDadTip: "Sticky like chewed bubble gum from Swellview! Catches pollen like a net!" },
+        { id: 'D', name: 'Sepal', role: 'Small green leaf-like structures that protected the young flower bud before opening', calebDadTip: "Captain America's vibranium shield protecting the baby flower!", christianDadTip: "The cozy green pajamas the flower wore when it was just a tiny baby bud!" },
+        { id: 'E', name: 'Stem', role: 'Strong support stalk that carries water and nutrients up from the roots', calebDadTip: "The supply drop elevator carrying water all the way to the top!", christianDadTip: "A giant green drinking straw slurping up muddy puddle water from the ground!" }
+      ]
+    }
+  };
+
+  /**
+   * Renders an interactive SVG biological diagram with labeled pins A, B, C, D, E
+   */
+  function renderBiologicalDiagram(type, activeMarkerId = null, isInteractive = false) {
+    if (type === 'insect') {
+      return `
+        <div class="relative w-full max-w-md mx-auto select-none">
+          <svg viewBox="0 0 520 280" class="w-full h-auto drop-shadow-md">
+            <!-- Background glow -->
+            <rect width="520" height="280" rx="16" fill="#f8fafc" stroke="#e2e8f0" stroke-width="2"/>
+            
+            <!-- 6 Jointed Legs (attached to thorax at center x: 230-290, y: 140) -->
+            <!-- Top 3 legs -->
+            <path d="M 230 130 Q 210 70 170 50" fill="none" stroke="#334155" stroke-width="5" stroke-linecap="round"/>
+            <path d="M 260 125 Q 260 60 250 40" fill="none" stroke="#334155" stroke-width="5" stroke-linecap="round"/>
+            <path d="M 290 130 Q 320 65 350 50" fill="none" stroke="#334155" stroke-width="5" stroke-linecap="round"/>
+            <!-- Bottom 3 legs -->
+            <path d="M 230 155 Q 210 215 170 235" fill="none" stroke="#334155" stroke-width="5" stroke-linecap="round"/>
+            <path d="M 260 160 Q 260 225 250 245" fill="none" stroke="#334155" stroke-width="5" stroke-linecap="round"/>
+            <path d="M 290 155 Q 320 220 350 235" fill="none" stroke="#334155" stroke-width="5" stroke-linecap="round"/>
+
+            <!-- Antennae (from head) -->
+            <path d="M 125 130 Q 80 100 50 85" fill="none" stroke="#1e293b" stroke-width="3.5" stroke-linecap="round"/>
+            <circle cx="50" cy="85" r="4" fill="#1e293b"/>
+            <path d="M 125 155 Q 80 185 50 200" fill="none" stroke="#1e293b" stroke-width="3.5" stroke-linecap="round"/>
+            <circle cx="50" cy="200" r="4" fill="#1e293b"/>
+
+            <!-- Body Segment 1: Head (x: 140, y: 142) -->
+            <ellipse cx="145" cy="142" rx="32" ry="28" fill="#e2e8f0" stroke="#0f172a" stroke-width="3.5"/>
+            <!-- Compound Eyes -->
+            <ellipse cx="132" cy="126" rx="8" ry="6" fill="#0f172a"/>
+            <ellipse cx="132" cy="158" rx="8" ry="6" fill="#0f172a"/>
+
+            <!-- Body Segment 2: Thorax (Center, x: 260, y: 142) -->
+            <ellipse cx="260" cy="142" rx="55" ry="42" fill="#fed7aa" stroke="#c2410c" stroke-width="3.5"/>
+            <!-- Wings overlay -->
+            <path d="M 250 130 Q 340 70 410 95 Q 350 145 270 140 Z" fill="rgba(147, 197, 253, 0.45)" stroke="#3b82f6" stroke-width="2"/>
+            <path d="M 250 155 Q 340 215 410 190 Q 350 140 270 145 Z" fill="rgba(147, 197, 253, 0.45)" stroke="#3b82f6" stroke-width="2"/>
+
+            <!-- Body Segment 3: Abdomen (Rear, x: 395, y: 142) -->
+            <ellipse cx="395" cy="142" rx="68" ry="38" fill="#fef08a" stroke="#ca8a04" stroke-width="3.5"/>
+            <!-- Abdomen Segment Stripes -->
+            <line x1="365" y1="108" x2="365" y2="176" stroke="#a16207" stroke-width="3"/>
+            <line x1="395" y1="105" x2="395" y2="179" stroke="#a16207" stroke-width="3"/>
+            <line x1="425" y1="108" x2="425" y2="176" stroke="#a16207" stroke-width="3"/>
+
+            <!-- PIN A: Antennae Pointer -->
+            <line x1="55" y1="65" x2="80" y2="90" stroke="#ef4444" stroke-width="2" stroke-dasharray="3 2"/>
+            ${renderPinBadge(55, 65, 'A', activeMarkerId === 'A', isInteractive, 'insect')}
+
+            <!-- PIN B: Head Pointer -->
+            <line x1="145" y1="75" x2="145" y2="110" stroke="#ef4444" stroke-width="2" stroke-dasharray="3 2"/>
+            ${renderPinBadge(145, 65, 'B', activeMarkerId === 'B', isInteractive, 'insect')}
+
+            <!-- PIN C: Thorax Pointer -->
+            <line x1="260" y1="20" x2="260" y2="95" stroke="#ef4444" stroke-width="2" stroke-dasharray="3 2"/>
+            ${renderPinBadge(260, 20, 'C', activeMarkerId === 'C', isInteractive, 'insect')}
+
+            <!-- PIN D: Abdomen Pointer -->
+            <line x1="395" y1="65" x2="395" y2="100" stroke="#ef4444" stroke-width="2" stroke-dasharray="3 2"/>
+            ${renderPinBadge(395, 55, 'D', activeMarkerId === 'D', isInteractive, 'insect')}
+
+            <!-- PIN E: 6 Jointed Legs Pointer -->
+            <line x1="180" y1="255" x2="200" y2="225" stroke="#ef4444" stroke-width="2" stroke-dasharray="3 2"/>
+            ${renderPinBadge(180, 255, 'E', activeMarkerId === 'E', isInteractive, 'insect')}
+          </svg>
+        </div>
+      `;
+    } else if (type === 'flower') {
+      return `
+        <div class="relative w-full max-w-md mx-auto select-none">
+          <svg viewBox="0 0 520 300" class="w-full h-auto drop-shadow-md">
+            <rect width="520" height="300" rx="16" fill="#f8fafc" stroke="#e2e8f0" stroke-width="2"/>
+            
+            <!-- Stem -->
+            <path d="M 260 170 Q 260 230 250 280" fill="none" stroke="#16a34a" stroke-width="12" stroke-linecap="round"/>
+            <!-- Stem Leaf -->
+            <path d="M 255 230 Q 200 220 185 240 Q 225 255 253 238" fill="#22c55e" stroke="#15803d" stroke-width="2.5"/>
+
+            <!-- Sepal (green base leaves) -->
+            <path d="M 225 175 Q 260 200 295 175 Q 260 160 225 175 Z" fill="#15803d" stroke="#14532d" stroke-width="2"/>
+            <path d="M 215 185 Q 200 160 225 170" fill="#22c55e" stroke="#15803d" stroke-width="3"/>
+            <path d="M 305 185 Q 320 160 295 170" fill="#22c55e" stroke="#15803d" stroke-width="3"/>
+
+            <!-- Petals (Red/Pink/Amber) -->
+            <ellipse cx="260" cy="75" rx="34" ry="46" fill="#f43f5e" stroke="#be123c" stroke-width="3"/>
+            <ellipse cx="205" cy="115" rx="46" ry="34" fill="#fb7185" stroke="#be123c" stroke-width="3"/>
+            <ellipse cx="315" cy="115" rx="46" ry="34" fill="#fb7185" stroke="#be123c" stroke-width="3"/>
+            <ellipse cx="225" cy="160" rx="42" ry="32" fill="#f43f5e" stroke="#be123c" stroke-width="3"/>
+            <ellipse cx="295" cy="160" rx="42" ry="32" fill="#f43f5e" stroke="#be123c" stroke-width="3"/>
+
+            <!-- Stamens (Male Anthers with Pollen) -->
+            <path d="M 250 145 Q 220 110 215 85" fill="none" stroke="#ca8a04" stroke-width="3"/>
+            <ellipse cx="215" cy="85" rx="7" ry="5" fill="#facc15" stroke="#a16207" stroke-width="2"/>
+            <path d="M 270 145 Q 300 110 305 85" fill="none" stroke="#ca8a04" stroke-width="3"/>
+            <ellipse cx="305" cy="85" rx="7" ry="5" fill="#facc15" stroke="#a16207" stroke-width="2"/>
+
+            <!-- Center Pistil / Carpel (Female) -->
+            <path d="M 255 155 Q 255 110 255 85 Q 260 75 265 85 Q 265 110 265 155 Z" fill="#86efac" stroke="#16a34a" stroke-width="2.5"/>
+            <!-- Stigma knob -->
+            <ellipse cx="260" cy="78" rx="8" ry="6" fill="#4ade80" stroke="#15803d" stroke-width="2"/>
+            <!-- Ovary base -->
+            <ellipse cx="260" cy="155" rx="18" ry="16" fill="#bbf7d0" stroke="#16a34a" stroke-width="2"/>
+
+            <!-- PIN A: Petal Pointer -->
+            <line x1="120" y1="90" x2="175" y2="105" stroke="#ef4444" stroke-width="2" stroke-dasharray="3 2"/>
+            ${renderPinBadge(120, 90, 'A', activeMarkerId === 'A', isInteractive, 'flower')}
+
+            <!-- PIN B: Stamen / Anther Pointer -->
+            <line x1="395" y1="75" x2="315" y2="85" stroke="#ef4444" stroke-width="2" stroke-dasharray="3 2"/>
+            ${renderPinBadge(395, 75, 'B', activeMarkerId === 'B', isInteractive, 'flower')}
+
+            <!-- PIN C: Pistil / Stigma Center Pointer -->
+            <line x1="260" y1="35" x2="260" y2="70" stroke="#ef4444" stroke-width="2" stroke-dasharray="3 2"/>
+            ${renderPinBadge(260, 35, 'C', activeMarkerId === 'C', isInteractive, 'flower')}
+
+            <!-- PIN D: Sepal Pointer -->
+            <line x1="150" y1="185" x2="215" y2="180" stroke="#ef4444" stroke-width="2" stroke-dasharray="3 2"/>
+            ${renderPinBadge(150, 185, 'D', activeMarkerId === 'D', isInteractive, 'flower')}
+
+            <!-- PIN E: Stem Pointer -->
+            <line x1="365" y1="245" x2="265" y2="245" stroke="#ef4444" stroke-width="2" stroke-dasharray="3 2"/>
+            ${renderPinBadge(365, 245, 'E', activeMarkerId === 'E', isInteractive, 'flower')}
+          </svg>
+        </div>
+      `;
+    }
+    return '';
+  }
+
+  function renderPinBadge(cx, cy, letter, isActive, isInteractive, diagramType) {
+    const bg = isActive ? '#ef4444' : '#1e293b';
+    const border = isActive ? '#ffffff' : '#f8fafc';
+    const scale = isActive ? 'scale(1.25)' : 'scale(1)';
+    const cursor = isInteractive ? 'cursor-pointer' : 'pointer-events-none';
+    const clickHandler = isInteractive ? `onclick="window.DadApp.selectDiagramPart('${diagramType}', '${letter}')"` : '';
+
+    return `
+      <g class="${cursor} transition-transform" style="transform-origin: ${cx}px ${cy}px; transform: ${scale};" ${clickHandler}>
+        <circle cx="${cx}" cy="${cy}" r="17" fill="${bg}" stroke="${border}" stroke-width="3" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.2))"/>
+        <text x="${cx}" y="${cy + 5}" fill="#ffffff" font-size="13" font-weight="900" text-anchor="middle" font-family="sans-serif">
+          ${letter}
+        </text>
+      </g>
+    `;
+  }
+
+  // Pre-loaded units including interactive visual biology units!
   const INITIAL_UNITS = [
+    {
+      id: 'unit_christian_science_1',
+      studentId: 'christian',
+      title: 'Insect Anatomy: 3 Body Parts & Bug Identification',
+      subject: 'Science',
+      diagramType: 'insect',
+      dateAdded: '2026-10-17',
+      notes: 'Elementary Biology: Identifying the head, thorax, abdomen, antennae, and 6 jointed legs of an insect.',
+      studyGuide: {
+        summary: "Every insect in the world has 3 main body segments, 2 feelers, and 6 legs—just like an army of Minions building gadgets!",
+        keyRules: [
+          "Head (Pin B): Holds the compound eyes, mouth, and antenna feelers.",
+          "Thorax (Pin C): The middle engine! ALL 6 legs and wings connect exclusively to the thorax.",
+          "Abdomen (Pin D): The rear section containing the stomach, heart, and stinger.",
+          "All insects have exactly 6 legs (3 pairs) and 2 antennae!"
+        ],
+        dadExample: "If you see a spider with 8 legs, it's NOT an insect! A real insect has 6 legs attached to its thorax and a big abdomen like Daddy Pig's tummy!"
+      },
+      memorizationItems: [
+        { term: "Head", definition: "Front segment with eyes, mouth, and antennae", type: "flashcard" },
+        { term: "Thorax", definition: "Middle body section where all 6 legs and wings attach", type: "flashcard" },
+        { term: "Abdomen", definition: "Rear segment with digestive organs and stinger", type: "flashcard" },
+        { term: "6 Legs", definition: "The exact number of jointed legs every insect has", type: "flashcard" },
+        { term: "Antennae", definition: "Sensory organs used to feel, smell, and detect danger", type: "flashcard" }
+      ],
+      quizQuestions: [
+        {
+          id: 'ins_q1',
+          type: 'multiple-choice',
+          diagramType: 'insect',
+          activeMarker: 'C',
+          question: "Look at the insect diagram: Which letter points to the THORAX (the middle engine section where all 6 legs attach)?",
+          options: ["Letter B (Front)", "Letter C (Middle section)", "Letter D (Rear)", "Letter A (Top feelers)"],
+          correctIndex: 1,
+          explanation: "Letter C is the Thorax! That's the engine room holding all 6 legs and wings!"
+        },
+        {
+          id: 'ins_q2',
+          type: 'multiple-choice',
+          diagramType: 'insect',
+          activeMarker: 'D',
+          question: "Look at Pin D on the rear section of the bug. What is this part called?",
+          options: ["The Abdomen (Tummy & Organs)", "The Head", "The Thorax", "The Wing"],
+          correctIndex: 0,
+          explanation: "Letter D is the Abdomen—the bug's tummy and digestion section!"
+        },
+        {
+          id: 'ins_q3',
+          type: 'multiple-choice',
+          diagramType: 'insect',
+          activeMarker: 'A',
+          question: "Which letter on the diagram points to the insect's ANTENNAE (used to smell and feel)?",
+          options: ["Pin E", "Pin C", "Pin A (Top feelers)", "Pin D"],
+          correctIndex: 2,
+          explanation: "Pin A points to the antennae! They sniff out food and sense danger like Captain Man!"
+        },
+        {
+          id: 'ins_q4',
+          type: 'multiple-choice',
+          diagramType: 'insect',
+          activeMarker: 'E',
+          question: "How many jointed legs (indicated by Pin E) does every true insect have?",
+          options: ["4 legs", "6 legs (3 pairs)", "8 legs", "10 legs"],
+          correctIndex: 1,
+          explanation: "Every insect has exactly 6 legs attached to the thorax! Spiders have 8, so spiders aren't insects!"
+        },
+        {
+          id: 'ins_q5',
+          type: 'multiple-choice',
+          diagramType: 'insect',
+          activeMarker: 'B',
+          question: "Which letter points to the HEAD containing the compound eyes and mouthparts?",
+          options: ["Pin B", "Pin C", "Pin E", "Pin D"],
+          correctIndex: 0,
+          explanation: "Pin B is the Head! Where the bug wears its Minion goggles!"
+        }
+      ],
+      attempts: []
+    },
+
+    {
+      id: 'unit_caleb_biology_1',
+      studentId: 'caleb',
+      title: 'Plant Biology: Flower Anatomy & Reproduction',
+      subject: 'Science',
+      diagramType: 'flower',
+      dateAdded: '2026-10-17',
+      notes: '7th Grade Biology: Labeling petals, stamens, anthers, pistil, sepal, and stem.',
+      studyGuide: {
+        summary: "Plant anatomy is just like an NFL offensive line: every part has a distinct blocking or scoring assignment to produce seeds!",
+        keyRules: [
+          "Petal (Pin A): Bright colorful leaves that attract pollinators like bees and hummingbirds.",
+          "Stamen (Pin B): The male organ (anther + filament) that manufactures pollen dust.",
+          "Pistil (Pin C): The sticky female organ (stigma, style, ovary) that catches pollen to grow seeds.",
+          "Sepal (Pin D): Green protective leaves at the base that shielded the baby bud.",
+          "Stem (Pin E): The highway that carries water and nutrients up from the soil."
+        ],
+        dadExample: "Think of pollen like a soccer ball: the Stamen kicks it, the bee acts as the midfielder carrying it, and the sticky Pistil catches it for a goal! Boom!"
+      },
+      memorizationItems: [
+        { term: "Petal", definition: "Colorful leaf designed to attract insect pollinators", type: "flashcard" },
+        { term: "Stamen", definition: "The male flower part consisting of the anther and filament", type: "flashcard" },
+        { term: "Pistil / Carpel", definition: "The female flower part consisting of stigma, style, and ovary", type: "flashcard" },
+        { term: "Sepal", definition: "Protective outer green leaves supporting the petals", type: "flashcard" },
+        { term: "Stem", definition: "Structural support stalk transporting water from roots", type: "flashcard" }
+      ],
+      quizQuestions: [
+        {
+          id: 'flw_q1',
+          type: 'multiple-choice',
+          diagramType: 'flower',
+          activeMarker: 'A',
+          question: "Look at the flower diagram: Which letter points to the PETAL (attracts pollinators)?",
+          options: ["Letter B", "Letter A", "Letter D", "Letter E"],
+          correctIndex: 1,
+          explanation: "Letter A points to the Petal! Flashy like team colors in FIFA!"
+        },
+        {
+          id: 'flw_q2',
+          type: 'multiple-choice',
+          diagramType: 'flower',
+          activeMarker: 'B',
+          question: "Which letter indicates the STAMEN (the male organ producing pollen)?",
+          options: ["Letter B", "Letter C", "Letter E", "Letter A"],
+          correctIndex: 0,
+          explanation: "Letter B is the Stamen (with the yellow anther making pollen)!"
+        },
+        {
+          id: 'flw_q3',
+          type: 'multiple-choice',
+          diagramType: 'flower',
+          activeMarker: 'C',
+          question: "Pin C points to the sticky center tube that receives pollen. What is this organ called?",
+          options: ["The Stem", "The Petal", "The Pistil (or Carpel)", "The Sepal"],
+          correctIndex: 2,
+          explanation: "Pin C is the Pistil! Its sticky stigma catches pollen to fertilize seeds in the ovary."
+        },
+        {
+          id: 'flw_q4',
+          type: 'multiple-choice',
+          diagramType: 'flower',
+          activeMarker: 'D',
+          question: "Which letter points to the SEPAL (the green leaves protecting the young bud)?",
+          options: ["Pin A", "Pin B", "Pin D", "Pin E"],
+          correctIndex: 2,
+          explanation: "Pin D is the Sepal! Nature's Captain America shield for the baby flower bud!"
+        },
+        {
+          id: 'flw_q5',
+          type: 'multiple-choice',
+          diagramType: 'flower',
+          activeMarker: 'E',
+          question: "What is the primary function of the STEM (indicated by Pin E)?",
+          options: ["To produce seeds", "To attract bees with sweet nectar", "To support the flower and transport water from the roots", "To catch pollen"],
+          correctIndex: 2,
+          explanation: "The Stem provides structural support and pumps water from the soil up to the flower!"
+        }
+      ],
+      attempts: []
+    },
+
     {
       id: 'unit_christian_math_1',
       studentId: 'christian',
@@ -272,90 +611,6 @@
     },
 
     {
-      id: 'unit_christian_spelling_1',
-      studentId: 'christian',
-      title: 'Week 7 Superhero Spelling Words',
-      subject: 'Spelling',
-      dateAdded: '2026-10-15',
-      notes: 'Phonics & spelling list: rescue, danger, secret, friend, shield.',
-      studyGuide: {
-        summary: "Superhero vocabulary words straight out of Henry Danger and Dog Man!",
-        keyRules: [
-          "Watch for silent letters and tricky vowel teams like 'ie' in friend.",
-          "Remember: Fri-end ends with 'end'!",
-          "Rescue ends with '-cue' like barbecue!"
-        ],
-        dadExample: "A true 'friend' helps you out when there is 'danger' in Swellview!"
-      },
-      memorizationItems: [
-        { term: "rescue", definition: "To save someone from danger (r-e-s-c-u-e)", type: "spelling" },
-        { term: "danger", definition: "Possibility of harm or injury (d-a-n-g-e-r)", type: "spelling" },
-        { term: "secret", definition: "Something kept hidden or private (s-e-c-r-e-t)", type: "spelling" },
-        { term: "friend", definition: "A person you know and like (f-r-i-e-n-d)", type: "spelling" },
-        { term: "shield", definition: "A protective armor plate (s-h-i-e-l-d)", type: "spelling" }
-      ],
-      quizQuestions: [
-        {
-          id: 'sp1',
-          type: 'text-input',
-          question: "Spell the word: Captain Man rushed to the ________ to save the city.",
-          wordToSpell: "rescue",
-          explanation: "R-E-S-C-U-E!"
-        },
-        {
-          id: 'sp2',
-          type: 'text-input',
-          question: "Spell the word: Kid Danger warns the citizens of incoming ________.",
-          wordToSpell: "danger",
-          explanation: "D-A-N-G-E-R!"
-        },
-        {
-          id: 'sp3',
-          type: 'text-input',
-          question: "Spell the word: Rowley is Greg Heffley's best ________.",
-          wordToSpell: "friend",
-          explanation: "F-R-I-E-N-D (remember: friends stay till the end)!"
-        },
-        {
-          id: 'sp4',
-          type: 'text-input',
-          question: "Spell the word: The location of the Man Cave is a top ________.",
-          wordToSpell: "secret",
-          explanation: "S-E-C-R-E-T!"
-        },
-        {
-          id: 'sp5',
-          type: 'text-input',
-          question: "Spell the word: Bark Knight uses a heavy steel ________ for defense.",
-          wordToSpell: "shield",
-          explanation: "S-H-I-E-L-D (i before e)!"
-        }
-      ],
-      attempts: [
-        {
-          attemptNumber: 1,
-          timestamp: '2026-10-15T18:20:00Z',
-          score: 3,
-          total: 5,
-          percentage: 60,
-          timeSeconds: 90,
-          pacingVerdict: 'thoughtful',
-          dadFeedback: "Great try! Christian nailed 'danger' and 'secret'. Remember 'friend' has an 'ie' in the middle!"
-        },
-        {
-          attemptNumber: 2,
-          timestamp: '2026-10-16T19:10:00Z',
-          score: 5,
-          total: 5,
-          percentage: 100,
-          timeSeconds: 140,
-          pacingVerdict: 'thoughtful',
-          dadFeedback: "BOOM! 5 out of 5! That's a master spelling bee badge for the Man Cave!"
-        }
-      ]
-    },
-
-    {
       id: 'unit_caleb_math_1',
       studentId: 'caleb',
       title: 'Pre-Algebra: Solving One-Step Equations',
@@ -375,8 +630,7 @@
         { term: "Inverse of Addition (+)", definition: "Subtraction (-)", type: "flashcard" },
         { term: "Inverse of Subtraction (-)", definition: "Addition (+)", type: "flashcard" },
         { term: "Inverse of Multiplication (×)", definition: "Division (÷)", type: "flashcard" },
-        { term: "Inverse of Division (÷)", definition: "Multiplication (×)", type: "flashcard" },
-        { term: "Variable (x, y, n)", definition: "An unknown value we need to isolate and solve for", type: "flashcard" }
+        { term: "Inverse of Division (÷)", definition: "Multiplication (×)", type: "flashcard" }
       ],
       quizQuestions: [
         {
@@ -456,7 +710,7 @@
   ];
 
   // ==========================================
-  // 2. PROGRESSION ENGINE (SVG GRAPH)
+  // 3. PROGRESSION ENGINE (SVG GRAPH)
   // ==========================================
   function renderUnitProgression(unit, student) {
     const attempts = unit.attempts || [];
@@ -711,7 +965,6 @@
     if (!secs && secs !== 0) return '0s';
     const m = Math.floor(secs / 60);
     const s = secs % 60;
-    if (m === 0) return `${s}s`;
     return `${m}m ${s < 10 ? '0' : ''}${s}s`;
   }
 
@@ -726,7 +979,7 @@
   }
 
   // ==========================================
-  // 3. GEMINI API & SMART VISION ENGINE (MULTI-PAGE & VIDEO)
+  // 4. GEMINI API & SMART VISION ENGINE (MULTI-PAGE & VIDEO & DIAGRAMS)
   // ==========================================
   const GEMINI_API_STORAGE_KEY = 'dadwork_gemini_api_key';
 
@@ -756,18 +1009,21 @@ You are the AI engine for "DadWork", an interactive homework app built by a lovi
 
 ANALYZE THIS MULTI-PAGE HOMEWORK PACKET / STUDY GUIDE (Containing ${pageCount} page(s) or scan):
 1. Review all pages in order.
-2. Identify who this homework belongs to (either "caleb" or "christian"). Look at student name handwriting, grade level, topic difficulty. Default to "${preferredStudentId || 'christian'}".
-3. Identify School Subject ("Math", "Spelling", "Vocabulary", "Science", "Social Studies", "Reading", etc.).
-4. Determine a clear Unit Title.
-5. Synthesize the whole packet:
+2. Check if the homework is a BIOLOGICAL or SCIENTIFIC DIAGRAM to label (e.g., insect/bug parts, flower parts, plant/tree, cell, or human organ).
+   If so, set "diagramType" to "insect" or "flower" or "custom".
+3. Identify who this homework belongs to (either "caleb" or "christian"). Look at student name handwriting, grade level, topic difficulty. Default to "${preferredStudentId || 'christian'}".
+4. Identify School Subject ("Math", "Spelling", "Vocabulary", "Science", "Social Studies", "Reading", etc.).
+5. Determine a clear Unit Title.
+6. Synthesize the whole packet:
    a) A unified study guide / kitchen table lesson explaining how to perform all exercises across the packet.
    b) 4 to 8 key memorization items / flashcards / vocabulary rules.
-   c) A comprehensive quiz with up to 10 questions (never more than 10) covering all sections of the packet.
+   c) A comprehensive quiz with up to 10 questions (never more than 10). If it is a biological diagram, include diagram identification questions with "diagramType" and "activeMarker" (A, B, C, D, E).
 
 Return strict raw JSON with:
 {
   "studentId": "caleb" | "christian",
   "subject": "Math" | "Spelling" | "Science" | "...",
+  "diagramType": "insect" | "flower" | null,
   "title": "Title",
   "notes": "Extracted summary of what was covered across the ${pageCount} pages",
   "studyGuide": {
@@ -782,6 +1038,8 @@ Return strict raw JSON with:
     {
       "id": "q1",
       "type": "multiple-choice",
+      "diagramType": "insect" | "flower" | null,
+      "activeMarker": "A" | "B" | "C" | "D" | "E" | null,
       "question": "...",
       "options": ["A", "B", "C", "D"],
       "correctIndex": 0,
@@ -834,64 +1092,76 @@ Return strict raw JSON with:
     if (isCaleb) {
       return {
         studentId: 'caleb',
-        subject: 'Math',
-        title: `Middle School Algebra & Geometry (${pageCount}-Page Packet)`,
-        notes: `Combined study packet spanning ${pageCount} pages covering algebraic expressions and polygon areas.`,
+        subject: 'Science',
+        diagramType: 'flower',
+        title: `Biology & Plant Reproduction (${pageCount}-Page Packet)`,
+        notes: `Combined science packet spanning ${pageCount} pages on flower anatomy, pollination, and photosynthesis.`,
         studyGuide: {
-          summary: "Balancing full-packet math problems is like executing a perfect set-piece in soccer or coordinating a 4-player Fortnite squad!",
+          summary: "Plant anatomy is just like an NFL offensive line: every part has a distinct blocking or scoring assignment to produce seeds!",
           keyRules: [
-            "Isolate the variable on one side by performing inverse operations.",
-            "Keep equations balanced: what you do to the left side, you must do to the right.",
-            "Check perimeter and area formulas: Perimeter walks the sideline; Area measures inside the turf!"
+            "Petal (Pin A): Bright colorful leaves that attract pollinators like bees and hummingbirds.",
+            "Stamen (Pin B): The male organ (anther + filament) that manufactures pollen dust.",
+            "Pistil (Pin C): The sticky female organ (stigma, style, ovary) that catches pollen to grow seeds.",
+            "Sepal (Pin D): Green protective leaves at the base that shielded the baby bud."
           ],
-          dadExample: "If 3x + 12 = 36: first subtract 12 from both sides to get 3x = 24. Then divide by 3 to isolate x = 8. Boom! Goal from midfield!"
+          dadExample: "Think of pollen like a soccer ball: the Stamen kicks it, the bee acts as the midfielder carrying it, and the sticky Pistil catches it for a goal! Boom!"
         },
         memorizationItems: [
-          { term: "Inverse Operations", definition: "Operations that undo each other (Add ↔ Subtract, Multiply ↔ Divide)", type: "flashcard" },
-          { term: "Isolating Variables", definition: "Getting the unknown letter alone on one side of '='", type: "flashcard" },
-          { term: "Rectangle Area", definition: "Area = Length × Width", type: "flashcard" },
-          { term: "Triangle Area", definition: "Area = 1/2 × Base × Height", type: "flashcard" }
+          { term: "Petal", definition: "Colorful leaf designed to attract insect pollinators", type: "flashcard" },
+          { term: "Stamen", definition: "The male flower part consisting of anther and filament", type: "flashcard" },
+          { term: "Pistil / Carpel", definition: "The female flower part consisting of stigma, style, and ovary", type: "flashcard" },
+          { term: "Sepal", definition: "Protective outer green leaves supporting the petals", type: "flashcard" }
         ],
         quizQuestions: [
           {
             id: 'q1',
             type: 'multiple-choice',
-            question: "From Page 1 of the packet: Solve for x in 2x + 8 = 24",
-            options: ["x = 8", "x = 16", "x = 12", "x = 6"],
-            correctIndex: 0,
-            explanation: "Subtract 8 to get 2x = 16, then divide by 2: x = 8. Clean 3-pointer!"
+            diagramType: 'flower',
+            activeMarker: 'A',
+            question: "Look at the flower diagram: Which letter points to the PETAL (attracts pollinators)?",
+            options: ["Letter B", "Letter A", "Letter D", "Letter E"],
+            correctIndex: 1,
+            explanation: "Letter A points to the Petal! Flashy like team colors in FIFA!"
           },
           {
             id: 'q2',
             type: 'multiple-choice',
-            question: "From Page 2: What is the area of a rectangle with length 12m and width 5m?",
-            options: ["60 square meters", "34 meters", "17 square meters", "50 square meters"],
+            diagramType: 'flower',
+            activeMarker: 'B',
+            question: "Which letter indicates the STAMEN (the male organ producing pollen)?",
+            options: ["Letter B", "Letter C", "Letter E", "Letter A"],
             correctIndex: 0,
-            explanation: "Area = 12 × 5 = 60 sq meters!"
+            explanation: "Letter B is the Stamen (with the yellow anther making pollen)!"
           },
           {
             id: 'q3',
             type: 'multiple-choice',
-            question: "Solve for y: y / 4 = 9",
-            options: ["y = 36", "y = 13", "y = 5", "y = 28"],
-            correctIndex: 0,
-            explanation: "Multiply both sides by 4: 9 × 4 = 36!"
+            diagramType: 'flower',
+            activeMarker: 'C',
+            question: "Pin C points to the sticky center tube that receives pollen. What is this organ called?",
+            options: ["The Stem", "The Petal", "The Pistil (or Carpel)", "The Sepal"],
+            correctIndex: 2,
+            explanation: "Pin C is the Pistil! Its sticky stigma catches pollen to fertilize seeds in the ovary."
           },
           {
             id: 'q4',
             type: 'multiple-choice',
-            question: "If a soccer field has sides of 110m and 75m, what is the total perimeter?",
-            options: ["370 meters", "185 meters", "8,250 square meters", "295 meters"],
-            correctIndex: 0,
-            explanation: "Perimeter = 110 + 75 + 110 + 75 = 370 meters!"
+            diagramType: 'flower',
+            activeMarker: 'D',
+            question: "Which letter points to the SEPAL (the green leaves protecting the young bud)?",
+            options: ["Pin A", "Pin B", "Pin D", "Pin E"],
+            correctIndex: 2,
+            explanation: "Pin D is the Sepal! Nature's Captain America shield for the baby flower bud!"
           },
           {
             id: 'q5',
             type: 'multiple-choice',
-            question: "What is the inverse of multiplying by 7?",
-            options: ["Dividing by 7", "Subtracting 7", "Adding 7", "Squaring 7"],
-            correctIndex: 0,
-            explanation: "Division is the inverse of multiplication!"
+            diagramType: 'flower',
+            activeMarker: 'E',
+            question: "What is the primary function of the STEM (indicated by Pin E)?",
+            options: ["To produce seeds", "To attract bees with sweet nectar", "To support the flower and transport water from the roots", "To catch pollen"],
+            correctIndex: 2,
+            explanation: "The Stem provides structural support and pumps water from the soil up to the flower!"
           }
         ]
       };
@@ -899,63 +1169,75 @@ Return strict raw JSON with:
       return {
         studentId: 'christian',
         subject: 'Science',
-        title: `Elementary Science: Animal Habitats & Lifecycles (${pageCount}-Page Packet)`,
-        notes: `Complete multi-page study packet covering animal habitats, food chains, and adaptations.`,
+        diagramType: 'insect',
+        title: `Insect Anatomy: Bug Identification (${pageCount}-Page Packet)`,
+        notes: `Elementary science packet spanning ${pageCount} pages on identifying insect body parts.`,
         studyGuide: {
-          summary: "This whole packet shows how animals survive and adapt in nature—just like Toons grouping together in Dandy's World!",
+          summary: "Every insect in the world has 3 main body segments, 2 feelers, and 6 legs—just like an army of Minions building gadgets!",
           keyRules: [
-            "Herbivores eat plants (like silly Minions eating bananas!).",
-            "Carnivores eat meat; Omnivores eat both plants and meat.",
-            "Camouflage helps animals hide from predators like Bark Knight hiding in shadows."
+            "Head (Pin B): Holds the compound eyes, mouth, and antenna feelers.",
+            "Thorax (Pin C): The middle engine! ALL 6 legs and wings connect exclusively to the thorax.",
+            "Abdomen (Pin D): The rear section containing the stomach, heart, and stinger.",
+            "All insects have exactly 6 legs (3 pairs) and 2 antennae!"
           ],
-          dadExample: "A desert camel has long eyelashes to keep sand out of its eyes and humps to store fat for long trips without water. Zoo-Wee Mama!"
+          dadExample: "A real insect has 6 legs attached to its thorax and a big abdomen like Daddy Pig's tummy! Zoo-Wee Mama!"
         },
         memorizationItems: [
-          { term: "Herbivore", definition: "An animal that eats only plants", type: "flashcard" },
-          { term: "Carnivore", definition: "An animal that eats only meat", type: "flashcard" },
-          { term: "Omnivore", definition: "An animal that eats both plants and animals", type: "flashcard" },
-          { term: "Camouflage", definition: "Patterns or colors that help an animal hide", type: "flashcard" }
+          { term: "Head", definition: "Front segment with eyes, mouth, and antennae", type: "flashcard" },
+          { term: "Thorax", definition: "Middle body section where all 6 legs and wings attach", type: "flashcard" },
+          { term: "Abdomen", definition: "Rear segment with digestive organs and stinger", type: "flashcard" },
+          { term: "6 Legs", definition: "The exact number of jointed legs every insect has", type: "flashcard" }
         ],
         quizQuestions: [
           {
             id: 'q1',
             type: 'multiple-choice',
-            question: "From Page 1 of the packet: An animal that eats only plants and fruits is called a:",
-            options: ["Carnivore", "Herbivore", "Robot", "Superhero"],
+            diagramType: 'insect',
+            activeMarker: 'C',
+            question: "Look at the insect diagram: Which letter points to the THORAX (the middle section where all 6 legs attach)?",
+            options: ["Letter B", "Letter C (Middle section)", "Letter D", "Letter A"],
             correctIndex: 1,
-            explanation: "Herbivores eat plants! Bananas count!"
+            explanation: "Letter C is the Thorax! That's the engine room holding all 6 legs and wings!"
           },
           {
             id: 'q2',
             type: 'multiple-choice',
-            question: "From Page 2: What is an animal's natural home called?",
-            options: ["A Man Cave", "A Habitat", "A Supermarket", "A Garage"],
-            correctIndex: 1,
-            explanation: "A Habitat is where an animal naturally lives and finds food!"
+            diagramType: 'insect',
+            activeMarker: 'D',
+            question: "Look at Pin D on the rear section of the bug. What is this part called?",
+            options: ["The Abdomen (Tummy & Organs)", "The Head", "The Thorax", "The Wing"],
+            correctIndex: 0,
+            explanation: "Letter D is the Abdomen—the bug's tummy and digestion section!"
           },
           {
             id: 'q3',
             type: 'multiple-choice',
-            question: "Why do chameleons change colors to match leaves and branches?",
-            options: ["Camouflage to stay safe from predators", "Because they are cold", "To dance", "To jump in puddles"],
-            correctIndex: 0,
-            explanation: "Camouflage keeps them hidden! Supa Buddy work!"
+            diagramType: 'insect',
+            activeMarker: 'A',
+            question: "Which letter on the diagram points to the insect's ANTENNAE (used to smell and feel)?",
+            options: ["Pin E", "Pin C", "Pin A (Top feelers)", "Pin D"],
+            correctIndex: 2,
+            explanation: "Pin A points to the antennae! They sniff out food and sense danger like Captain Man!"
           },
           {
             id: 'q4',
             type: 'multiple-choice',
-            question: "Dog Man is a dog-human superhero. Since dogs eat meat and grains/kibble, what type of eater is he?",
-            options: ["Omnivore", "Herbivore", "Plant only", "Fish only"],
-            correctIndex: 0,
-            explanation: "Omnivores eat both meat and plants!"
+            diagramType: 'insect',
+            activeMarker: 'E',
+            question: "How many jointed legs (indicated by Pin E) does every true insect have?",
+            options: ["4 legs", "6 legs (3 pairs)", "8 legs", "10 legs"],
+            correctIndex: 1,
+            explanation: "Every insect has exactly 6 legs attached to the thorax!"
           },
           {
             id: 'q5',
             type: 'multiple-choice',
-            question: "Which feature helps a polar bear survive freezing Arctic temperatures?",
-            options: ["Thick blubber and dense fur", "Bright pink feathers", "A long tail", "Sunscreen"],
+            diagramType: 'insect',
+            activeMarker: 'B',
+            question: "Which letter points to the HEAD containing the compound eyes and mouthparts?",
+            options: ["Pin B", "Pin C", "Pin E", "Pin D"],
             correctIndex: 0,
-            explanation: "Thick fat and dense fur keep the polar bear warm!"
+            explanation: "Pin B is the Head! Where the bug wears its Minion goggles!"
           }
         ]
       };
@@ -963,7 +1245,7 @@ Return strict raw JSON with:
   }
 
   // ==========================================
-  // 4. QUIZ RUNNER CLASS
+  // 5. QUIZ RUNNER CLASS (WITH VISUAL DIAGRAM SUPPORT)
   // ==========================================
   class QuizRunner {
     constructor(unit, student, onComplete) {
@@ -1022,6 +1304,10 @@ Return strict raw JSON with:
       const progressPercent = Math.round(((this.currentIndex) / this.questions.length) * 100);
       this.answeredCurrent = false;
 
+      // Check if this question has an associated biological diagram
+      const diagramType = q.diagramType || this.unit.diagramType || null;
+      const activeMarker = q.activeMarker || null;
+
       container.innerHTML = `
         <div class="quiz-active-card max-w-2xl mx-auto space-y-6">
           <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex items-center justify-between gap-3">
@@ -1051,6 +1337,17 @@ Return strict raw JSON with:
               <span class="text-xs font-black uppercase tracking-wider text-slate-400">Question #${this.currentIndex + 1}</span>
               <h3 class="text-lg sm:text-xl font-black text-slate-900 leading-snug">${q.question}</h3>
             </div>
+
+            <!-- VISUAL DIAGRAM DISPLAY (IF APPLICABLE) -->
+            ${diagramType ? `
+              <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-2">
+                <div class="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  <span>🔬 Biological Diagram Reference</span>
+                  ${activeMarker ? `<span class="text-rose-600 font-black">Target Pin: [${activeMarker}]</span>` : ''}
+                </div>
+                ${renderBiologicalDiagram(diagramType, activeMarker, false)}
+              </div>
+            ` : ''}
 
             <div id="question-interaction-zone" class="space-y-3">
               ${q.type === 'multiple-choice' ? this.renderMultipleChoice(q) : this.renderTextInput(q)}
@@ -1188,7 +1485,7 @@ Return strict raw JSON with:
             <span>Dad's Coaching Hint</span>
           </div>
           <div class="text-sm font-bold">${randomQuote}</div>
-          <div class="text-xs text-amber-800 mt-1 font-medium">${q.explanation || 'Review the study guide before the next attempt!'}</div>
+          <div class="text-xs text-amber-800 mt-1 font-medium">${q.explanation || 'Review the diagram before the next attempt!'}</div>
         `;
       }
     }
@@ -1361,7 +1658,7 @@ Return strict raw JSON with:
   }
 
   // ==========================================
-  // 5. STUDY VIEW RENDERER (WITH PACKET PAGES VIEWER)
+  // 6. STUDY VIEW RENDERER (WITH DIAGRAM EXPLORER & PACKET VIEWER)
   // ==========================================
   function renderStudyView(unit, student) {
     const guide = unit.studyGuide || {
@@ -1372,6 +1669,7 @@ Return strict raw JSON with:
     const memorizationItems = unit.memorizationItems || [];
     const isSpelling = unit.subject === 'Spelling';
     const isMath = unit.subject === 'Math';
+    const diagramType = unit.diagramType || null;
     const packetPages = unit.sourcePages || (unit.sourcePhotoUrl ? [unit.sourcePhotoUrl] : []);
 
     return `
@@ -1394,7 +1692,7 @@ Return strict raw JSON with:
           </div>
         </div>
 
-        <!-- Original Packet Modal / Drawer (if requested) -->
+        <!-- Original Packet Modal / Drawer -->
         <div id="packet-original-viewer" class="hidden bg-white p-5 rounded-3xl border border-slate-200 shadow-xl space-y-4">
           <div class="flex items-center justify-between pb-2 border-b border-slate-100">
             <h4 class="font-black text-slate-900 text-sm flex items-center gap-2">
@@ -1424,6 +1722,7 @@ Return strict raw JSON with:
           </div>
         </div>
 
+        <!-- Navigation Tabs -->
         <div class="flex flex-wrap gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200">
           <button id="tab-btn-lesson" onclick="window.DadApp.switchStudyTab('lesson')" class="study-tab-btn flex-1 min-w-[120px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 bg-white text-slate-900 shadow-sm">
             <span>📖</span>
@@ -1433,10 +1732,16 @@ Return strict raw JSON with:
             <span>🧠</span>
             <span>2. Memorization (${memorizationItems.length})</span>
           </button>
+          ${diagramType ? `
+            <button id="tab-btn-diagram" onclick="window.DadApp.switchStudyTab('diagram')" class="study-tab-btn flex-1 min-w-[120px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 text-slate-600 hover:text-slate-900 bg-emerald-50/50">
+              <span>🔬</span>
+              <span>3. Interactive Diagram Explorer</span>
+            </button>
+          ` : ''}
           ${isMath ? `
             <button id="tab-btn-scratchpad" onclick="window.DadApp.switchStudyTab('scratchpad')" class="study-tab-btn flex-1 min-w-[120px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 text-slate-600 hover:text-slate-900">
               <span>✏️</span>
-              <span>3. Math Scratchpad</span>
+              <span>4. Math Scratchpad</span>
             </button>
           ` : ''}
           <button onclick="window.DadApp.startQuiz('${unit.id}')" class="flex-1 min-w-[120px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md active:scale-95">
@@ -1445,6 +1750,7 @@ Return strict raw JSON with:
           </button>
         </div>
 
+        <!-- TAB 1: Kitchen Table Lesson -->
         <div id="study-panel-lesson" class="study-panel space-y-6">
           <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-5">
             <div class="flex items-start gap-4">
@@ -1497,6 +1803,7 @@ Return strict raw JSON with:
           </div>
         </div>
 
+        <!-- TAB 2: Memorization -->
         <div id="study-panel-memory" class="study-panel space-y-6 hidden">
           <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-5">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1577,6 +1884,71 @@ Return strict raw JSON with:
           </div>
         </div>
 
+        <!-- TAB 3: Interactive Biological Diagram Explorer -->
+        ${diagramType ? `
+          <div id="study-panel-diagram" class="study-panel space-y-6 hidden">
+            <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-5">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div>
+                  <h3 class="text-lg font-black text-slate-900 flex items-center gap-2">
+                    <span>🔬</span>
+                    <span>Interactive Diagram Explorer: ${BIOLOGICAL_DIAGRAMS[diagramType]?.title || 'Biology Parts'}</span>
+                  </h3>
+                  <p class="text-xs text-slate-500">Tap any glowing letter badge on the diagram to see what that body part does and hear Dad's analogy!</p>
+                </div>
+                <div class="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
+                  <span>💡 Tap pins to explore</span>
+                </div>
+              </div>
+
+              <!-- Interactive Diagram SVG -->
+              <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-center">
+                ${renderBiologicalDiagram(diagramType, null, true)}
+              </div>
+
+              <!-- Selected Part Details Card (Dynamic) -->
+              <div id="diagram-part-detail-box" class="p-5 rounded-2xl bg-indigo-50 border border-indigo-200 text-slate-900 space-y-2">
+                <div class="flex items-center gap-2">
+                  <span class="w-6 h-6 rounded-full bg-indigo-600 text-white font-black text-xs flex items-center justify-center">?</span>
+                  <h4 class="font-extrabold text-sm text-indigo-950" id="diagram-part-name">Tap on Pin A, B, C, D, or E above to explore!</h4>
+                </div>
+                <p class="text-xs text-indigo-900 font-medium" id="diagram-part-role">Each pin points to an essential part of the biological organism.</p>
+                <div class="pt-2 border-t border-indigo-200/60 text-xs italic text-indigo-800" id="diagram-part-dad-tip">
+                  Dad's Tip: Tap a pin to hear how it works!
+                </div>
+              </div>
+
+              <!-- All Parts Reference Grid -->
+              <div class="space-y-3 pt-2">
+                <h4 class="text-xs font-black uppercase tracking-wider text-slate-400">All Labeled Parts at a Glance</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  ${(BIOLOGICAL_DIAGRAMS[diagramType]?.parts || []).map(p => `
+                    <div class="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-indigo-300 transition-all flex items-start gap-3 cursor-pointer"
+                         onclick="window.DadApp.selectDiagramPart('${diagramType}', '${p.id}')">
+                      <span class="w-7 h-7 rounded-lg bg-slate-900 text-white font-black text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
+                        ${p.id}
+                      </span>
+                      <div class="space-y-0.5">
+                        <div class="font-bold text-slate-900 text-sm">${p.name}</div>
+                        <div class="text-xs text-slate-500">${p.role}</div>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+
+              <div class="pt-4 flex items-center justify-between border-t border-slate-100">
+                <span class="text-xs text-slate-500">Know your diagram parts? Take the quiz!</span>
+                <button onclick="window.DadApp.startQuiz('${unit.id}')" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold shadow-md transition-all active:scale-95 flex items-center gap-2">
+                  <span>Take Diagram Quiz!</span>
+                  <span>🎯</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- TAB 4: Scratchpad (if math) -->
         ${isMath ? `
           <div id="study-panel-scratchpad" class="study-panel space-y-6 hidden">
             <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
@@ -1613,7 +1985,7 @@ Return strict raw JSON with:
   }
 
   // ==========================================
-  // 6. MAIN DADWORK APPLICATION COORDINATOR (WITH MULTI-PAGE PACKET TRAY)
+  // 7. MAIN DADWORK APPLICATION COORDINATOR
   // ==========================================
   const STORAGE_KEY_UNITS = 'dadwork_study_units_v1';
   const STORAGE_KEY_STUDENT = 'dadwork_selected_student';
@@ -1626,9 +1998,7 @@ Return strict raw JSON with:
       this.activeQuizRunner = null;
       this.selectedSubjectFilter = 'ALL';
 
-      // Multi-Page Packet Tray state
       this.packetPages = [];
-
       this.units = this.loadUnits();
       this.scratchpadCtx = null;
 
@@ -1752,7 +2122,7 @@ Return strict raw JSON with:
                 <span class="text-lg font-black tracking-tight text-slate-900">DadWork</span>
                 <span class="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">Homework Coach</span>
               </div>
-              <div class="text-[11px] text-slate-500 font-medium">Multi-Page Packets, Quizzes & Dad Humor</div>
+              <div class="text-[11px] text-slate-500 font-medium">Multi-Page Packets, Diagrams & Dad Humor</div>
             </div>
           </div>
 
@@ -1870,7 +2240,7 @@ Return strict raw JSON with:
                 ${randomWelcome}
               </h1>
               <p class="text-xs sm:text-sm text-white/90 leading-relaxed pt-1">
-                Dad is in your corner! Review your study guides, practice without rushing, and take on the quizzes to unlock new dad jokes!
+                Dad is in your corner! Explore diagrams, practice flashcards, and take quizzes without rushing to unlock new dad jokes!
               </p>
             </div>
             <div class="absolute -right-4 -bottom-6 text-9xl opacity-20 select-none pointer-events-none">
@@ -1915,7 +2285,7 @@ Return strict raw JSON with:
                   <span>📚</span>
                   <span>Active Units & Progression Graphs</span>
                 </h2>
-                <p class="text-xs text-slate-500">Click any unit to study, take a quiz, or view the attempt-by-attempt improvement curve.</p>
+                <p class="text-xs text-slate-500">Includes visual biology diagrams, math equations, and spelling units.</p>
               </div>
               <button onclick="window.DadApp.navigate('upload')" class="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-all active:scale-95 flex items-center gap-1.5 self-start sm:self-auto">
                 <span>+</span>
@@ -1935,9 +2305,12 @@ Return strict raw JSON with:
                   <div class="p-5 rounded-2xl border border-slate-200 hover:border-indigo-400 hover:shadow-md transition-all bg-white flex flex-col justify-between space-y-4">
                     <div>
                       <div class="flex items-center justify-between mb-2">
-                        <span class="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${unit.subject === 'Math' ? 'bg-indigo-100 text-indigo-700' : unit.subject === 'Spelling' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}">
-                          ${unit.subject}
-                        </span>
+                        <div class="flex items-center gap-1.5">
+                          <span class="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${unit.subject === 'Math' ? 'bg-indigo-100 text-indigo-700' : unit.subject === 'Spelling' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}">
+                            ${unit.subject}
+                          </span>
+                          ${unit.diagramType ? `<span class="text-[10px] font-black uppercase bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">🔬 Diagram</span>` : ''}
+                        </div>
                         <div class="flex items-center gap-2">
                           ${pageCount > 1 ? `<span class="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">📄 ${pageCount} Pages</span>` : ''}
                           <span class="text-xs text-slate-400 font-medium">${unit.dateAdded}</span>
@@ -2026,9 +2399,12 @@ Return strict raw JSON with:
                 <div class="bg-white rounded-2xl p-5 border border-slate-200 hover:border-indigo-400 hover:shadow-md transition-all flex flex-col justify-between space-y-4">
                   <div>
                     <div class="flex items-center justify-between mb-2">
-                      <span class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${unit.subject === 'Math' ? 'bg-indigo-100 text-indigo-700' : unit.subject === 'Spelling' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}">
-                        ${unit.subject}
-                      </span>
+                      <div class="flex items-center gap-1.5">
+                        <span class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${unit.subject === 'Math' ? 'bg-indigo-100 text-indigo-700' : unit.subject === 'Spelling' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}">
+                          ${unit.subject}
+                        </span>
+                        ${unit.diagramType ? `<span class="text-[10px] font-black uppercase bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">🔬 Diagram</span>` : ''}
+                      </div>
                       <span class="text-[11px] text-slate-400 font-medium">${unit.dateAdded}</span>
                     </div>
                     <h3 class="font-extrabold text-slate-900 text-base leading-snug cursor-pointer hover:text-indigo-600" onclick="window.DadApp.openStudyUnit('${unit.id}')">
@@ -2084,6 +2460,27 @@ Return strict raw JSON with:
       }
     }
 
+    selectDiagramPart(diagramType, partId) {
+      const diagram = BIOLOGICAL_DIAGRAMS[diagramType];
+      if (!diagram) return;
+      const part = diagram.parts.find(p => p.id === partId);
+      if (!part) return;
+
+      const student = this.getStudent();
+      const tip = student.id === 'caleb' ? part.calebDadTip : part.christianDadTip;
+
+      const nameEl = document.getElementById('diagram-part-name');
+      const roleEl = document.getElementById('diagram-part-role');
+      const tipEl = document.getElementById('diagram-part-dad-tip');
+
+      if (nameEl) nameEl.textContent = `Pin ${part.id}: ${part.name}`;
+      if (roleEl) roleEl.textContent = part.role;
+      if (tipEl) tipEl.textContent = `Dad says: "${tip}"`;
+
+      // Read name aloud
+      this.speakWord(part.name);
+    }
+
     renderStudy() {
       const main = document.getElementById('app-main');
       if (!main) return;
@@ -2098,7 +2495,7 @@ Return strict raw JSON with:
     }
 
     switchStudyTab(tabName) {
-      ['lesson', 'memory', 'scratchpad'].forEach(t => {
+      ['lesson', 'memory', 'diagram', 'scratchpad'].forEach(t => {
         const el = document.getElementById(`study-panel-${t}`);
         const btn = document.getElementById(`tab-btn-${t}`);
         if (el) {
@@ -2313,7 +2710,6 @@ Return strict raw JSON with:
             </p>
           </div>
 
-          <!-- Packet Status & Action Bar -->
           <div class="bg-white rounded-3xl p-5 sm:p-7 border border-slate-200 shadow-sm space-y-5">
             <div class="flex items-center justify-between pb-3 border-b border-slate-100">
               <div class="flex items-center gap-2">
@@ -2333,7 +2729,6 @@ Return strict raw JSON with:
               ` : ''}
             </div>
 
-            <!-- Page Thumbnail Tray Grid -->
             ${pageCount > 0 ? `
               <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 ${this.packetPages.map((p, idx) => `
@@ -2358,7 +2753,6 @@ Return strict raw JSON with:
                   </div>
                 `).join('')}
 
-                <!-- Add Next Page Card -->
                 <label class="cursor-pointer border-2 border-dashed border-indigo-300 hover:border-indigo-500 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-1 bg-indigo-50/20 hover:bg-indigo-50/50 transition-all h-44">
                   <span class="text-2xl text-indigo-600">+</span>
                   <span class="text-xs font-bold text-indigo-700">Snap Page ${pageCount + 1}</span>
@@ -2366,33 +2760,28 @@ Return strict raw JSON with:
                 </label>
               </div>
             ` : `
-              <!-- Empty State Dropzone -->
               <div class="border-2 border-dashed border-slate-300 rounded-2xl p-6 text-center space-y-3"
                    ondragover="event.preventDefault();"
                    ondrop="window.DadApp.handlePacketDrop(event)">
                 <div class="text-3xl">📑</div>
-                <div class="text-sm font-bold text-slate-700">Add the pages of their study packet</div>
+                <div class="text-sm font-bold text-slate-700">Add the pages of their study packet or biology worksheet</div>
                 <div class="text-xs text-slate-400">Works with photos of multiple pages or a video walkthrough!</div>
               </div>
             `}
 
-            <!-- Intake Buttons Toolbar -->
             <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
-              <!-- 1. Snap Page with Camera -->
               <label class="cursor-pointer px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 flex items-center gap-2">
                 <span>📸</span>
                 <span>${pageCount === 0 ? 'Snap Page 1' : 'Snap Next Page'}</span>
                 <input type="file" accept="image/*" capture="environment" class="hidden" onchange="window.DadApp.handlePacketFileInput(event)" />
               </label>
 
-              <!-- 2. Pick Multiple Pages from Photos -->
               <label class="cursor-pointer px-4 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm border border-slate-200 transition-all active:scale-95 flex items-center gap-2">
                 <span>🖼️</span>
                 <span>Select Multiple Pages from Photos</span>
                 <input type="file" accept="image/*" multiple class="hidden" onchange="window.DadApp.handlePacketFileInput(event)" />
               </label>
 
-              <!-- 3. Video Scan of Packet -->
               <label class="cursor-pointer px-4 py-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs sm:text-sm border border-amber-200 transition-all active:scale-95 flex items-center gap-2" title="Record or upload a quick video flipping through the pages">
                 <span>🎥</span>
                 <span>Record Video Scan</span>
@@ -2401,7 +2790,6 @@ Return strict raw JSON with:
             </div>
           </div>
 
-          <!-- Target Student & Analyze Action Bar -->
           <div class="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div class="flex items-center gap-3">
               <span class="text-xs font-bold text-slate-500 uppercase">Assigned To:</span>
@@ -2424,16 +2812,14 @@ Return strict raw JSON with:
             `}
           </div>
 
-          <!-- Loading / Analyzing Spinner -->
           <div id="upload-analyzing-spinner" class="hidden bg-white rounded-3xl p-8 border border-slate-200 shadow-xl text-center space-y-4">
             <div class="inline-block animate-spin text-5xl">⚙️</div>
             <h3 class="text-lg font-black text-slate-900" id="analyzing-status-title">DadWork AI is Analyzing the Entire Packet...</h3>
             <p class="text-xs text-slate-500 max-w-sm mx-auto" id="analyzing-status-sub">
-              Reading all pages in sequence, building customized Kitchen Table analogies, and assembling the comprehensive quiz!
+              Reading all pages, detecting biological diagrams and exercises, building customized Kitchen Table analogies, and assembling the comprehensive quiz!
             </p>
           </div>
 
-          <!-- Confirmation Modal / Drawer -->
           <div id="upload-confirmation-modal" class="hidden bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xl space-y-5"></div>
         </div>
       `;
@@ -2514,6 +2900,7 @@ Return strict raw JSON with:
         id: `unit_${parsedData.studentId}_${Date.now()}`,
         studentId: parsedData.studentId || this.currentStudentId,
         subject: parsedData.subject || 'Math',
+        diagramType: parsedData.diagramType || null,
         title: parsedData.title || 'New Study Unit',
         notes: parsedData.notes || `Multi-page homework packet (${this.packetPages.length} pages)`,
         dateAdded: new Date().toISOString().split('T')[0],
@@ -2537,7 +2924,6 @@ Return strict raw JSON with:
             </div>
           </div>
 
-          <!-- Mini Gallery of Included Pages -->
           <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200">
             <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Packet Pages Included (${this.packetPages.length})</div>
             <div class="flex items-center gap-2 overflow-x-auto pb-1">
@@ -2579,6 +2965,13 @@ Return strict raw JSON with:
               </div>
             </div>
 
+            ${window._pendingNewUnit.diagramType ? `
+              <div class="p-3 rounded-xl bg-purple-50 border border-purple-200 text-xs text-purple-900 font-bold flex items-center gap-2">
+                <span>🔬</span>
+                <span>Detected Biological Diagram: [${window._pendingNewUnit.diagramType.toUpperCase()}] with visual labeling quiz questions enabled!</span>
+              </div>
+            ` : ''}
+
             <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-1">
               <div><strong>Summary:</strong> ${window._pendingNewUnit.studyGuide?.summary}</div>
               <div class="text-slate-500">✨ Generated: ${window._pendingNewUnit.memorizationItems.length} memorization cards & ${window._pendingNewUnit.quizQuestions.length} quiz questions covering the full packet.</div>
@@ -2603,7 +2996,6 @@ Return strict raw JSON with:
       this.units.unshift(unit);
       this.saveUnits();
 
-      // Clear the packet upload tray for the next assignment
       this.packetPages = [];
 
       if (unit.studentId !== this.currentStudentId) {
@@ -2625,7 +3017,6 @@ Return strict raw JSON with:
         shareUrl = `${window.location.origin}${window.location.pathname}?unit=${unit.id}&student=${unit.studentId}`;
       } else {
         const unitCopy = { ...unit };
-        // Omit giant base64 images from URL hash to keep URL compact and snappy
         delete unitCopy.sourcePages;
         delete unitCopy.sourcePhotoUrl;
         const jsonStr = JSON.stringify(unitCopy);
