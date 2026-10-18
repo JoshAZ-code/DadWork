@@ -995,6 +995,21 @@
     }
   }
 
+  async function extractDocxTextFallback(arrayBuffer) {
+    if (!arrayBuffer) return '';
+    try {
+      const decoder = new TextDecoder('utf-8', { fatal: false });
+      const str = decoder.decode(arrayBuffer);
+      const matches = str.match(/<w:t[^>]*>([^<]+)<\/w:t>/g);
+      if (matches && matches.length > 0) {
+        return matches.map(m => m.replace(/<[^>]+>/g, '')).join(' ').trim();
+      }
+    } catch (e) {
+      console.warn('Fallback docx parsing error:', e);
+    }
+    return '';
+  }
+
   async function analyzeWorksheetPacket(pages, preferredStudentId) {
     const apiKey = getGeminiApiKey();
     if (!apiKey) {
@@ -1007,15 +1022,15 @@ You are the AI engine for "DadWork", an interactive homework app built by a lovi
 - Caleb: Middle School. Interests: Marvel movies (Avengers, Spider-Man, Iron Man), Soccer & FIFA, WWE wrestling, NBA basketball, NFL football, video games (Fortnite, Rocket League).
 - Christian: Elementary School. Interests: TV shows (Henry Danger / Captain Man), Roblox games (Dandy's World), Minions movies (bananas, silly laughs), Peppa Pig (Daddy Pig muddy puddles), books (Dog Man by Dav Pilkey, Diary of a Wimpy Kid "Zoo-Wee Mama!").
 
-ANALYZE THIS MULTI-PAGE HOMEWORK PACKET / STUDY GUIDE (Containing ${pageCount} page(s) or scan):
-1. Review all pages in order.
+ANALYZE THIS MULTI-PAGE HOMEWORK PACKET / STUDY GUIDE / ATTACHED FILES (Containing ${pageCount} file(s)/page(s): photos, videos, PDFs, or Word documents):
+1. Review all pages, documents, and attached materials in order.
 2. Check if the homework is a BIOLOGICAL or SCIENTIFIC DIAGRAM to label (e.g., insect/bug parts, flower parts, plant/tree, cell, or human organ).
    If so, set "diagramType" to "insect" or "flower" or "custom".
-3. Identify who this homework belongs to (either "caleb" or "christian"). Look at student name handwriting, grade level, topic difficulty. Default to "${preferredStudentId || 'christian'}".
+3. Identify who this homework belongs to (either "caleb" or "christian"). Look at student name handwriting, document headers, grade level, topic difficulty. Default to "${preferredStudentId || 'christian'}".
 4. Identify School Subject ("Math", "Spelling", "Vocabulary", "Science", "Social Studies", "Reading", etc.).
 5. Determine a clear Unit Title.
-6. Synthesize the whole packet:
-   a) A unified study guide / kitchen table lesson explaining how to perform all exercises across the packet.
+6. Synthesize the whole packet / document:
+   a) A unified study guide / kitchen table lesson explaining how to perform all exercises across the packet/document.
    b) 4 to 8 key memorization items / flashcards / vocabulary rules.
    c) A comprehensive quiz with up to 10 questions (never more than 10). If it is a biological diagram, include diagram identification questions with "diagramType" and "activeMarker" (A, B, C, D, E).
 
@@ -1025,7 +1040,7 @@ Return strict raw JSON with:
   "subject": "Math" | "Spelling" | "Science" | "...",
   "diagramType": "insect" | "flower" | null,
   "title": "Title",
-  "notes": "Extracted summary of what was covered across the ${pageCount} pages",
+  "notes": "Extracted summary of what was covered across the ${pageCount} file(s)",
   "studyGuide": {
     "summary": "...",
     "keyRules": ["Rule 1", "Rule 2", "Rule 3"],
@@ -1054,13 +1069,27 @@ Return strict raw JSON with:
 
       const parts = [{ text: promptText }];
       pages.forEach(p => {
-        const base64Clean = p.data.includes('base64,') ? p.data.split('base64,')[1] : p.data;
-        parts.push({
-          inline_data: {
-            mime_type: p.mimeType || 'image/jpeg',
-            data: base64Clean
-          }
-        });
+        if (p.extractedText && (p.isDocx || p.isDoc || p.isTxt)) {
+          parts.push({
+            text: `\n\n=== ATTACHED HOMEWORK DOCUMENT: "${p.name || 'document'}" ===\n${p.extractedText}\n=== END DOCUMENT ===\n`
+          });
+        } else if (p.isPdf) {
+          const base64Clean = p.data.includes('base64,') ? p.data.split('base64,')[1] : p.data;
+          parts.push({
+            inline_data: {
+              mime_type: 'application/pdf',
+              data: base64Clean
+            }
+          });
+        } else {
+          const base64Clean = p.data.includes('base64,') ? p.data.split('base64,')[1] : p.data;
+          parts.push({
+            inline_data: {
+              mime_type: p.mimeType || (p.isVideo ? 'video/mp4' : 'image/jpeg'),
+              data: base64Clean
+            }
+          });
+        }
       });
 
       const response = await fetch(endpoint, {
@@ -1088,6 +1117,124 @@ Return strict raw JSON with:
   function simulateMultiPageAnalysis(pages, preferredStudentId) {
     const isCaleb = preferredStudentId === 'caleb';
     const pageCount = pages ? pages.length : 1;
+    const fileNames = (pages || []).map(p => (p.name || '').toLowerCase()).join(' ');
+    const allText = (pages || []).map(p => (p.extractedText || '').toLowerCase()).join(' ');
+    const combined = fileNames + ' ' + allText;
+
+    const firstDocName = (pages || []).find(p => p.name)?.name?.replace(/\.[^/.]+$/, "") || (isCaleb ? "Plant Biology" : "Insect Anatomy");
+
+    // Math Detection
+    if (combined.includes('math') || combined.includes('fraction') || combined.includes('multiply') || combined.includes('algebra') || combined.includes('division')) {
+      if (isCaleb) {
+        return {
+          studentId: 'caleb',
+          subject: 'Math',
+          diagramType: null,
+          title: `Fractions & Proportions (${firstDocName})`,
+          notes: `Parsed ${pageCount} document(s) on fractions, ratios, and problem solving.`,
+          studyGuide: {
+            summary: "Math is all about tactical gameplans—treat fractions like splitting up FIFA tournament brackets!",
+            keyRules: [
+              "Finding Common Denominators: Like aligning your squad before kickoff.",
+              "Cross-Multiplication: The ultimate striker pass across the field.",
+              "Simplify: Always reduce your final answer to lowest terms for clean points."
+            ],
+            dadExample: "If you have 3/4 of a pizza and your brother Christian eats 1/2, convert 1/2 to 2/4. 3/4 - 2/4 = 1/4 pizza left for Dad! High IQ move!"
+          },
+          memorizationItems: [
+            { term: "Numerator", definition: "Top number showing how many parts we have", type: "flashcard" },
+            { term: "Denominator", definition: "Bottom number showing total parts in the whole", type: "flashcard" },
+            { term: "Reciprocal", definition: "Flipping a fraction upside down (e.g., 3/4 becomes 4/3)", type: "flashcard" },
+            { term: "Improper Fraction", definition: "A fraction where the numerator is greater than or equal to the denominator", type: "flashcard" }
+          ],
+          quizQuestions: [
+            {
+              id: 'q1',
+              type: 'multiple-choice',
+              question: "What is 3/4 + 1/8 in simplest form?",
+              options: ["4/12", "7/8", "1/2", "5/8"],
+              correctIndex: 1,
+              explanation: "Convert 3/4 into 6/8. Then 6/8 + 1/8 = 7/8! Top shelf snipe!"
+            },
+            {
+              id: 'q2',
+              type: 'multiple-choice',
+              question: "When dividing two fractions, what step do you take with the second fraction?",
+              options: ["Square it", "Add 1 to the denominator", "Find its reciprocal (flip it) and multiply", "Subtract from 1"],
+              correctIndex: 2,
+              explanation: "Keep, Change, Flip! Flip the second fraction and multiply like a Rocket League aerial redirect!"
+            }
+          ]
+        };
+      } else {
+        return {
+          studentId: 'christian',
+          subject: 'Math',
+          diagramType: null,
+          title: `Math Super Mission: ${firstDocName}`,
+          notes: `Parsed ${pageCount} document(s) for Christian's math adventures.`,
+          studyGuide: {
+            summary: "Captain Man and Kid Danger are cracking super addition and multiplication codes today!",
+            keyRules: [
+              "Line up numbers neatly in columns.",
+              "Carry the 1 when your column reaches 10 or more.",
+              "Double check your work like Bark Knight sniffing for clues!"
+            ],
+            dadExample: "If Minions have 5 bananas and Bob steals 2, you have 3 bananas. Zoo-Wee Mama, that was easy!"
+          },
+          memorizationItems: [
+            { term: "Sum", definition: "The answer when you add numbers together", type: "flashcard" },
+            { term: "Difference", definition: "The answer when you subtract numbers", type: "flashcard" },
+            { term: "Product", definition: "The result of multiplying numbers", type: "flashcard" }
+          ],
+          quizQuestions: [
+            {
+              id: 'q1',
+              type: 'multiple-choice',
+              question: "What is 24 + 38?",
+              options: ["52", "62", "58", "60"],
+              correctIndex: 1,
+              explanation: "4 + 8 = 12 (write 2, carry 1). 1 + 2 + 3 = 6. Answer is 62! Super brain power!"
+            }
+          ]
+        };
+      }
+    }
+
+    // Spelling / Vocab Detection
+    if (combined.includes('spell') || combined.includes('vocab') || combined.includes('word') || combined.includes('definition')) {
+      return {
+        studentId: isCaleb ? 'caleb' : 'christian',
+        subject: 'Spelling',
+        diagramType: null,
+        title: `${firstDocName} (Spelling & Vocab Master)`,
+        notes: `Extracted vocabulary lists and spelling rules from ${pageCount} document(s).`,
+        studyGuide: {
+          summary: isCaleb ? "Unlock advanced vocabulary to sound like Tony Stark in the lab!" : "Dog Man and Captain Man spelling mission! Sound it out loud!",
+          keyRules: [
+            "Break words down into syllables.",
+            "Watch out for silent letters and vowel pairs.",
+            "Say each syllable slowly before writing."
+          ],
+          dadExample: isCaleb ? "Vocabulary is like assembling the Infinity Gauntlet—each word is another power stone." : "Zoo-Wee Mama! Spelling words right gets you extra dad jokes at dinner!"
+        },
+        memorizationItems: [
+          { term: "Perseverance", definition: "Continuing through difficulty without giving up", type: "spelling" },
+          { term: "Magnificent", definition: "Extremely beautiful, elaborate, or impressive", type: "spelling" },
+          { term: "Curiosity", definition: "A strong desire to learn or know something", type: "spelling" }
+        ],
+        quizQuestions: [
+          {
+            id: 'q1',
+            type: 'multiple-choice',
+            question: "Which spelling is correct for the word meaning 'not giving up'?",
+            options: ["Perseverence", "Perseverance", "Purseverance", "Preseverance"],
+            correctIndex: 1,
+            explanation: "Perseverance! Notice the 'a' near the end. Pure championship grit!"
+          }
+        ]
+      };
+    }
 
     if (isCaleb) {
       return {
@@ -1702,12 +1849,57 @@ Return strict raw JSON with:
             <button onclick="window.DadApp.togglePacketViewer()" class="text-xs font-bold text-slate-400 hover:text-slate-700">Close ✕</button>
           </div>
           <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto p-1">
-            ${packetPages.map((src, i) => `
-              <div class="rounded-xl border border-slate-200 overflow-hidden bg-slate-50 text-center">
-                <img src="${src}" class="w-full h-36 object-contain bg-slate-900/5 cursor-pointer" onclick="window.open('${src}')" title="Click to view full size" />
-                <div class="text-[10px] font-bold text-slate-600 py-1 bg-white border-t border-slate-100">Page ${i + 1}</div>
-              </div>
-            `).join('')}
+            ${packetPages.map((src, i) => {
+              const p = typeof src === 'string' ? {
+                data: src,
+                name: `Item ${i + 1}`,
+                isPdf: src.startsWith('data:application/pdf') || src.includes('.pdf'),
+                isVideo: src.startsWith('data:video/'),
+                isDocx: src.includes('.docx') || src.startsWith('data:application/vnd.openxmlformats'),
+                isDoc: src.includes('.doc')
+              } : src;
+
+              if (p.isPdf) {
+                return `
+                  <div class="rounded-xl border border-rose-200 p-3 bg-rose-50/40 flex flex-col items-center justify-between text-center h-36">
+                    <span class="text-3xl mt-1">📄</span>
+                    <span class="text-[10px] font-black text-rose-700 uppercase">PDF Document</span>
+                    <span class="text-[10px] font-bold text-slate-700 truncate max-w-[120px]" title="${p.name || 'document.pdf'}">${p.name || 'document.pdf'}</span>
+                    <a href="${p.data}" target="_blank" download="${p.name || 'homework.pdf'}" class="text-[10px] font-bold text-rose-700 bg-white border border-rose-200 px-2 py-1 rounded-lg hover:bg-rose-50 shadow-xs">
+                      Open PDF ↗
+                    </a>
+                  </div>
+                `;
+              }
+              if (p.isDocx || p.isDoc || p.isTxt) {
+                return `
+                  <div class="rounded-xl border border-blue-200 p-3 bg-blue-50/40 flex flex-col items-center justify-between text-center h-36">
+                    <span class="text-3xl mt-1">${p.isDocx ? '📝' : '📃'}</span>
+                    <span class="text-[10px] font-black text-blue-700 uppercase">${p.isDocx ? 'Word DOCX' : 'Document'}</span>
+                    <span class="text-[10px] font-bold text-slate-700 truncate max-w-[120px]" title="${p.name || 'document.docx'}">${p.name || 'document.docx'}</span>
+                    ${p.data ? `<a href="${p.data}" download="${p.name || 'document.docx'}" class="text-[10px] font-bold text-blue-700 bg-white border border-blue-200 px-2 py-1 rounded-lg hover:bg-blue-50 shadow-xs">Download ↗</a>` : ''}
+                  </div>
+                `;
+              }
+              if (p.isVideo) {
+                return `
+                  <div class="rounded-xl border border-amber-200 p-3 bg-amber-50/40 flex flex-col items-center justify-between text-center h-36">
+                    <span class="text-3xl mt-1">🎥</span>
+                    <span class="text-[10px] font-black text-amber-700 uppercase">Video Scan</span>
+                    <span class="text-[10px] font-bold text-slate-700 truncate max-w-[120px]" title="${p.name || 'video_scan.mp4'}">${p.name || 'video_scan.mp4'}</span>
+                    <a href="${p.data}" target="_blank" download="${p.name || 'video_scan.mp4'}" class="text-[10px] font-bold text-amber-700 bg-white border border-amber-200 px-2 py-1 rounded-lg hover:bg-amber-50 shadow-xs">
+                      View Video ↗
+                    </a>
+                  </div>
+                `;
+              }
+              return `
+                <div class="rounded-xl border border-slate-200 overflow-hidden bg-slate-50 text-center">
+                  <img src="${p.data || src}" class="w-full h-28 object-contain bg-slate-900/5 cursor-pointer" onclick="window.open('${p.data || src}')" title="Click to view full size" />
+                  <div class="text-[10px] font-bold text-slate-600 py-1 bg-white border-t border-slate-100 truncate px-1">${p.name || `Page ${i + 1}`}</div>
+                </div>
+              `;
+            }).join('')}
           </div>
         </div>
 
@@ -2703,10 +2895,10 @@ Return strict raw JSON with:
       return `
         <div class="max-w-3xl mx-auto space-y-6">
           <div class="text-center space-y-2">
-            <div class="text-4xl mb-1">📸 ➔ 📑</div>
-            <h1 class="text-2xl sm:text-3xl font-black text-slate-900">Upload Homework Packet</h1>
+            <div class="text-4xl mb-1">📸 ➔ 📑 ➔ 📁</div>
+            <h1 class="text-2xl sm:text-3xl font-black text-slate-900">Upload Homework, Worksheets & Study Files</h1>
             <p class="text-xs sm:text-sm text-slate-500 max-w-lg mx-auto">
-              Snap each page one-by-one, select multiple pages from Google Photos/Gallery, or record a video scan! DadWork will combine the full packet into a single study unit.
+              Snap pages with camera, choose from photo library, record a video scan, or upload documents directly (PDFs, Word DOCX, and docs)! DadWork combines everything into a single tailored study unit.
             </p>
           </div>
 
@@ -2717,7 +2909,7 @@ Return strict raw JSON with:
                   ${pageCount}
                 </span>
                 <span class="text-sm font-black text-slate-900">
-                  ${pageCount === 0 ? 'No Pages Captured Yet' : `${pageCount} Page${pageCount > 1 ? 's' : ''} in this Packet`}
+                  ${pageCount === 0 ? 'No Materials Captured Yet' : `${pageCount} File${pageCount > 1 ? 's' : ''}/Page${pageCount > 1 ? 's' : ''} in this Packet`}
                 </span>
               </div>
 
@@ -2738,6 +2930,28 @@ Return strict raw JSON with:
                         <div class="text-center p-3">
                           <span class="text-3xl">🎥</span>
                           <div class="text-[10px] font-bold text-slate-600 mt-1 truncate max-w-[100px]">${p.name || 'Video Scan'}</div>
+                          <div class="text-[9px] text-slate-400 font-mono">${p.sizeFormatted || ''}</div>
+                        </div>
+                      ` : p.isPdf ? `
+                        <div class="text-center p-3 flex flex-col items-center">
+                          <span class="text-3xl">📄</span>
+                          <span class="text-[10px] font-extrabold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full mt-1">PDF DOCUMENT</span>
+                          <div class="text-[10px] font-bold text-slate-700 mt-1 truncate max-w-[110px]" title="${p.name}">${p.name}</div>
+                          <div class="text-[9px] text-slate-400 font-mono">${p.sizeFormatted || ''}</div>
+                        </div>
+                      ` : p.isDocx || p.isDoc ? `
+                        <div class="text-center p-3 flex flex-col items-center">
+                          <span class="text-3xl">📝</span>
+                          <span class="text-[10px] font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full mt-1">WORD DOCX</span>
+                          <div class="text-[10px] font-bold text-slate-700 mt-1 truncate max-w-[110px]" title="${p.name}">${p.name}</div>
+                          <div class="text-[9px] text-slate-400 font-mono">${p.sizeFormatted || ''}</div>
+                        </div>
+                      ` : p.isTxt ? `
+                        <div class="text-center p-3 flex flex-col items-center">
+                          <span class="text-3xl">📃</span>
+                          <span class="text-[10px] font-extrabold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full mt-1">TEXT FILE</span>
+                          <div class="text-[10px] font-bold text-slate-700 mt-1 truncate max-w-[110px]" title="${p.name}">${p.name}</div>
+                          <div class="text-[9px] text-slate-400 font-mono">${p.sizeFormatted || ''}</div>
                         </div>
                       ` : `
                         <img src="${p.data}" class="w-full h-full object-cover" />
@@ -2747,25 +2961,26 @@ Return strict raw JSON with:
                       </button>
                     </div>
                     <div class="p-2 bg-white text-center border-t border-slate-100 flex items-center justify-between text-xs">
-                      <span class="font-bold text-slate-800">Page ${idx + 1}</span>
-                      <span class="text-[10px] text-slate-400 font-mono">${p.isVideo ? 'VIDEO' : 'IMAGE'}</span>
+                      <span class="font-bold text-slate-800">Item ${idx + 1}</span>
+                      <span class="text-[10px] text-slate-400 font-mono font-bold">${p.isPdf ? 'PDF' : p.isDocx ? 'DOCX' : p.isVideo ? 'VIDEO' : p.isTxt ? 'TXT' : 'IMAGE'}</span>
                     </div>
                   </div>
                 `).join('')}
 
                 <label class="cursor-pointer border-2 border-dashed border-indigo-300 hover:border-indigo-500 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-1 bg-indigo-50/20 hover:bg-indigo-50/50 transition-all h-44">
                   <span class="text-2xl text-indigo-600">+</span>
-                  <span class="text-xs font-bold text-indigo-700">Snap Page ${pageCount + 1}</span>
-                  <input type="file" accept="image/*" capture="environment" class="hidden" onchange="window.DadApp.handlePacketFileInput(event)" />
+                  <span class="text-xs font-bold text-indigo-700">Add Page / File</span>
+                  <span class="text-[10px] text-indigo-400">Photo, PDF, DOCX</span>
+                  <input type="file" accept="image/*,video/*,.pdf,.docx,.doc,.txt,.rtf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/*" multiple class="hidden" onchange="window.DadApp.handlePacketFileInput(event)" />
                 </label>
               </div>
             ` : `
               <div class="border-2 border-dashed border-slate-300 rounded-2xl p-6 text-center space-y-3"
                    ondragover="event.preventDefault();"
                    ondrop="window.DadApp.handlePacketDrop(event)">
-                <div class="text-3xl">📑</div>
-                <div class="text-sm font-bold text-slate-700">Add the pages of their study packet or biology worksheet</div>
-                <div class="text-xs text-slate-400">Works with photos of multiple pages or a video walkthrough!</div>
+                <div class="text-4xl">📚</div>
+                <div class="text-sm font-bold text-slate-700">Add homework: Photos, Videos, PDFs, or Word Documents (.docx)</div>
+                <div class="text-xs text-slate-400">Snap pages with camera, choose from photo library, record a video scan, or upload PDF / DOCX study guides!</div>
               </div>
             `}
 
@@ -2778,8 +2993,14 @@ Return strict raw JSON with:
 
               <label class="cursor-pointer px-4 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm border border-slate-200 transition-all active:scale-95 flex items-center gap-2">
                 <span>🖼️</span>
-                <span>Select Multiple Pages from Photos</span>
+                <span>Choose Photos</span>
                 <input type="file" accept="image/*" multiple class="hidden" onchange="window.DadApp.handlePacketFileInput(event)" />
+              </label>
+
+              <label class="cursor-pointer px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 flex items-center gap-2" title="Select files such as PDFs, Word DOCX, or text worksheets">
+                <span>📁</span>
+                <span>Upload Files (PDF, Word DOCX)</span>
+                <input type="file" accept=".pdf,.docx,.doc,.txt,.rtf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/*" multiple class="hidden" onchange="window.DadApp.handlePacketFileInput(event)" />
               </label>
 
               <label class="cursor-pointer px-4 py-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs sm:text-sm border border-amber-200 transition-all active:scale-95 flex items-center gap-2" title="Record or upload a quick video flipping through the pages">
@@ -2805,10 +3026,10 @@ Return strict raw JSON with:
 
             ${pageCount > 0 ? `
               <button onclick="window.DadApp.startPacketAnalysis()" class="px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
-                <span>🚀 Analyze Whole Packet (${pageCount} Pages) →</span>
+                <span>🚀 Analyze Whole Packet (${pageCount} Items) →</span>
               </button>
             ` : `
-              <div class="text-xs text-slate-400 italic">Add at least 1 page to start analysis</div>
+              <div class="text-xs text-slate-400 italic">Add at least 1 page or document to start analysis</div>
             `}
           </div>
 
@@ -2816,7 +3037,7 @@ Return strict raw JSON with:
             <div class="inline-block animate-spin text-5xl">⚙️</div>
             <h3 class="text-lg font-black text-slate-900" id="analyzing-status-title">DadWork AI is Analyzing the Entire Packet...</h3>
             <p class="text-xs text-slate-500 max-w-sm mx-auto" id="analyzing-status-sub">
-              Reading all pages, detecting biological diagrams and exercises, building customized Kitchen Table analogies, and assembling the comprehensive quiz!
+              Reading all pages and documents, detecting biological diagrams and exercises, building customized Kitchen Table analogies, and assembling the comprehensive quiz!
             </p>
           </div>
 
@@ -2838,25 +3059,102 @@ Return strict raw JSON with:
       }
     }
 
-    addFilesToPacket(files) {
-      let readCount = 0;
-      files.forEach(file => {
-        const isVideo = file.type.startsWith('video/');
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          this.packetPages.push({
-            data: event.target.result,
-            mimeType: file.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
-            name: file.name,
-            isVideo: isVideo
-          });
-          readCount += 1;
-          if (readCount === files.length) {
-            this.renderCurrentView();
+    async addFilesToPacket(files) {
+      const formatBytes = (bytes) => {
+        if (!bytes) return '';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+      };
+
+      const readFileAsDataURL = (file) => {
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result || '');
+          reader.onerror = () => resolve('');
+          reader.readAsDataURL(file);
+        });
+      };
+
+      const readFileAsText = (file) => {
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result || '');
+          reader.onerror = () => resolve('');
+          reader.readAsText(file);
+        });
+      };
+
+      const readFileAsArrayBuffer = (file) => {
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.onerror = () => resolve(null);
+          reader.readAsArrayBuffer(file);
+        });
+      };
+
+      for (const file of files) {
+        const fileName = file.name || 'document';
+        const lowerName = fileName.toLowerCase();
+        const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|avi|mkv)$/i.test(lowerName);
+        const isPdf = file.type === 'application/pdf' || lowerName.endsWith('.pdf');
+        const isDocx = lowerName.endsWith('.docx') || file.type.includes('wordprocessingml');
+        const isDoc = lowerName.endsWith('.doc') || file.type.includes('msword');
+        const isTxt = file.type.startsWith('text/') || /\.(txt|md|csv|rtf|json)$/i.test(lowerName);
+
+        let dataUrl = '';
+        let extractedText = '';
+        let mimeType = file.type;
+
+        if (isDocx) {
+          mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+          const buffer = await readFileAsArrayBuffer(file);
+          if (buffer) {
+            try {
+              if (window.mammoth) {
+                const res = await window.mammoth.extractRawText({ arrayBuffer: buffer });
+                extractedText = (res && res.value) ? res.value.trim() : '';
+              } else {
+                extractedText = await extractDocxTextFallback(buffer);
+              }
+            } catch (err) {
+              console.warn('Docx extraction error, trying fallback:', err);
+              extractedText = await extractDocxTextFallback(buffer);
+            }
           }
-        };
-        reader.readAsDataURL(file);
-      });
+          dataUrl = await readFileAsDataURL(file);
+        } else if (isTxt) {
+          mimeType = file.type || 'text/plain';
+          extractedText = await readFileAsText(file);
+          dataUrl = await readFileAsDataURL(file);
+        } else if (isPdf) {
+          mimeType = 'application/pdf';
+          dataUrl = await readFileAsDataURL(file);
+        } else {
+          dataUrl = await readFileAsDataURL(file);
+          if (!mimeType) {
+            mimeType = isVideo ? 'video/mp4' : 'image/jpeg';
+          }
+        }
+
+        this.packetPages.push({
+          data: dataUrl,
+          mimeType: mimeType || (isPdf ? 'application/pdf' : isVideo ? 'video/mp4' : isDocx ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'image/jpeg'),
+          name: fileName,
+          size: file.size,
+          sizeFormatted: formatBytes(file.size),
+          isVideo: isVideo,
+          isPdf: isPdf,
+          isDocx: isDocx,
+          isDoc: isDoc || isDocx || isTxt,
+          isTxt: isTxt,
+          extractedText: extractedText,
+          textPreview: extractedText ? extractedText.slice(0, 180).trim() : ''
+        });
+      }
+
+      this.renderCurrentView();
     }
 
     removePacketPage(index) {
@@ -2894,7 +3192,18 @@ Return strict raw JSON with:
       const confirmBox = document.getElementById('upload-confirmation-modal');
       if (!confirmBox) return;
 
-      const pageThumbnails = this.packetPages.map(p => p.data);
+      const pageThumbnails = this.packetPages.map(p => ({
+        data: p.data,
+        name: p.name,
+        mimeType: p.mimeType,
+        sizeFormatted: p.sizeFormatted,
+        isPdf: p.isPdf,
+        isDocx: p.isDocx,
+        isDoc: p.isDoc,
+        isTxt: p.isTxt,
+        isVideo: p.isVideo,
+        textPreview: p.textPreview
+      }));
 
       window._pendingNewUnit = {
         id: `unit_${parsedData.studentId}_${Date.now()}`,
@@ -2902,9 +3211,9 @@ Return strict raw JSON with:
         subject: parsedData.subject || 'Math',
         diagramType: parsedData.diagramType || null,
         title: parsedData.title || 'New Study Unit',
-        notes: parsedData.notes || `Multi-page homework packet (${this.packetPages.length} pages)`,
+        notes: parsedData.notes || `Homework material (${this.packetPages.length} file(s)/page(s))`,
         dateAdded: new Date().toISOString().split('T')[0],
-        sourcePhotoUrl: pageThumbnails[0] || null,
+        sourcePhotoUrl: pageThumbnails[0] ? pageThumbnails[0].data : null,
         sourcePages: pageThumbnails,
         studyGuide: parsedData.studyGuide,
         memorizationItems: parsedData.memorizationItems || [],
@@ -2918,18 +3227,22 @@ Return strict raw JSON with:
             <div class="flex items-center gap-2">
               <span class="text-2xl">✅</span>
               <div>
-                <h3 class="text-lg font-black text-slate-900">Entire Packet Analyzed! Does this look right?</h3>
-                <p class="text-xs text-slate-500">Synthesized ${this.packetPages.length} page(s) into one cohesive unit</p>
+                <h3 class="text-lg font-black text-slate-900">Homework Materials Analyzed! Does this look right?</h3>
+                <p class="text-xs text-slate-500">Synthesized ${this.packetPages.length} item(s) into one cohesive unit</p>
               </div>
             </div>
           </div>
 
           <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200">
-            <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Packet Pages Included (${this.packetPages.length})</div>
+            <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Attached Materials (${this.packetPages.length})</div>
             <div class="flex items-center gap-2 overflow-x-auto pb-1">
               ${this.packetPages.map((p, idx) => `
-                <div class="w-16 h-16 rounded-xl border border-slate-300 overflow-hidden flex-shrink-0 bg-white">
-                  ${p.isVideo ? '<div class="w-full h-full flex items-center justify-center text-xl">🎥</div>' : `<img src="${p.data}" class="w-full h-full object-cover" />`}
+                <div class="w-16 h-16 rounded-xl border border-slate-300 overflow-hidden flex-shrink-0 bg-white flex flex-col items-center justify-center p-1 text-center">
+                  ${p.isVideo ? '<span class="text-xl">🎥</span><span class="text-[8px] font-bold text-amber-700">VIDEO</span>'
+                    : p.isPdf ? '<span class="text-xl">📄</span><span class="text-[8px] font-bold text-rose-700">PDF</span>'
+                    : p.isDocx || p.isDoc ? '<span class="text-xl">📝</span><span class="text-[8px] font-bold text-blue-700">DOCX</span>'
+                    : p.isTxt ? '<span class="text-xl">📃</span><span class="text-[8px] font-bold text-slate-600">TXT</span>'
+                    : `<img src="${p.data}" class="w-full h-full object-cover" />`}
                 </div>
               `).join('')}
             </div>
