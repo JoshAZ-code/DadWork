@@ -1010,6 +1010,29 @@
     return '';
   }
 
+  async function extractPdfText(dataUrlOrArrayBuffer) {
+    if (!dataUrlOrArrayBuffer) return '';
+    try {
+      if (window.pdfjsLib) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        const loadingTask = window.pdfjsLib.getDocument(dataUrlOrArrayBuffer);
+        const pdf = await loadingTask.promise;
+        let textParts = [];
+        const pagesToRead = Math.min(pdf.numPages, 10);
+        for (let i = 1; i <= pagesToRead; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          const pageStr = content.items.map(it => it.str).join(' ').trim();
+          if (pageStr) textParts.push(`[Page ${i}]: ${pageStr}`);
+        }
+        return textParts.join('\n');
+      }
+    } catch (e) {
+      console.warn('PDF text extraction error:', e);
+    }
+    return '';
+  }
+
   async function analyzeWorksheetPacket(pages, preferredStudentId) {
     const apiKey = getGeminiApiKey();
     if (!apiKey) {
@@ -1236,22 +1259,164 @@ Return strict raw JSON with:
       };
     }
 
-    if (isCaleb) {
+    // Geography / Social Studies Detection
+    const isGeography = /geograph|continent|country|countries|capital|state|states|map|border|river|mountain|ocean|equator|latitude|longitude|hemisphere|compass|landform|region|climate|atlas|globe|social studies|world|america|europe|asia|africa/i.test(combined);
+    if (isGeography) {
+      if (isCaleb) {
+        return {
+          studentId: 'caleb',
+          subject: 'Social Studies',
+          diagramType: null,
+          title: `World Geography & Global Studies (${firstDocName})`,
+          notes: `Parsed ${pageCount} document(s) on geography, continents, world regions, and map skills.`,
+          studyGuide: {
+            summary: "Geography is the ultimate world tournament map! Like planning an international FIFA tour or an Avengers global mission across all 7 continents.",
+            keyRules: [
+              "The 7 Continents: Asia (largest), Africa, North America, South America, Antarctica, Europe, Australia/Oceania.",
+              "The 5 Oceans: Pacific (largest & deepest), Atlantic, Indian, Southern, Arctic (smallest/coldest).",
+              "Lines of Navigation: The Equator divides North & South Hemispheres (0° Latitude); Prime Meridian divides East & West (0° Longitude).",
+              "Compass Rose: Cardinal directions are North, South, East, West (Never Eat Soggy Waffles!)."
+            ],
+            dadExample: "If you're flying from the FIFA stadium in London to Buenos Aires, you're crossing the Prime Meridian and the Equator from the Northern to the Southern Hemisphere! Pure tactical navigation!"
+          },
+          memorizationItems: [
+            { term: "Equator", definition: "Imaginary line at 0° latitude dividing the Northern and Southern Hemispheres", type: "flashcard" },
+            { term: "Prime Meridian", definition: "Imaginary line at 0° longitude running through Greenwich, England dividing East and West", type: "flashcard" },
+            { term: "Continent", definition: "One of the seven massive continuous expanses of land on Earth", type: "flashcard" },
+            { term: "Latitude & Longitude", definition: "Grid coordinates: Latitude lines run flat (East-West); Longitude lines run tall (North-South)", type: "flashcard" },
+            { term: "Pacific Ocean", definition: "The largest and deepest of the world's five oceans", type: "flashcard" }
+          ],
+          quizQuestions: [
+            {
+              id: 'q1',
+              type: 'multiple-choice',
+              question: "Which imaginary line sits at 0° Latitude and divides Earth into the Northern and Southern Hemispheres?",
+              options: ["The Prime Meridian", "The Tropic of Cancer", "The Equator", "The International Date Line"],
+              correctIndex: 2,
+              explanation: "The Equator! It's the central belt around Earth at 0° Latitude."
+            },
+            {
+              id: 'q2',
+              type: 'multiple-choice',
+              question: "What is the largest continent on Earth by both land area and population?",
+              options: ["Africa", "North America", "Europe", "Asia"],
+              correctIndex: 3,
+              explanation: "Asia is the largest continent in both area and population!"
+            },
+            {
+              id: 'q3',
+              type: 'multiple-choice',
+              question: "Which of the following is the largest and deepest ocean on our planet?",
+              options: ["Atlantic Ocean", "Pacific Ocean", "Indian Ocean", "Arctic Ocean"],
+              correctIndex: 1,
+              explanation: "The Pacific Ocean covers more than 30% of the Earth's surface!"
+            },
+            {
+              id: 'q4',
+              type: 'multiple-choice',
+              question: "Lines of latitude measure distance north or south of what reference line?",
+              options: ["The Equator", "The Prime Meridian", "The South Pole", "The North Star"],
+              correctIndex: 0,
+              explanation: "Latitude lines run parallel to the Equator (think: Latitude is 'Lat' like 'Ladder' steps)!"
+            },
+            {
+              id: 'q5',
+              type: 'multiple-choice',
+              question: "How many continents exist on Planet Earth?",
+              options: ["5", "6", "7", "8"],
+              correctIndex: 2,
+              explanation: "7 Continents: Asia, Africa, North America, South America, Antarctica, Europe, and Australia!"
+            }
+          ]
+        };
+      } else {
+        return {
+          studentId: 'christian',
+          subject: 'Social Studies',
+          diagramType: null,
+          title: `Geography Explorer Mission: ${firstDocName}`,
+          notes: `Parsed ${pageCount} document(s) on continents, oceans, and map adventures for Christian.`,
+          studyGuide: {
+            summary: "Captain Man and Kid Danger need your map skills to track villains across all 7 continents and 5 oceans!",
+            keyRules: [
+              "There are 7 Continents on Earth (huge land masses where people and animals live).",
+              "There are 5 Big Oceans (Pacific, Atlantic, Indian, Southern, Arctic).",
+              "The Compass Rose shows: North (up), South (down), East (right), West (left). Remember: Never Eat Soggy Waffles!",
+              "A Map Legend or Key unlocks what symbols, colors, and roads mean on a map."
+            ],
+            dadExample: "If the Minions run away looking for bananas in Antarctica, they better pack warm coats because it's at the icy bottom of the world! Zoo-Wee Mama!"
+          },
+          memorizationItems: [
+            { term: "Continent", definition: "A giant piece of land on Earth (there are 7 in total!)", type: "flashcard" },
+            { term: "Ocean", definition: "A huge body of salt water covering most of the Earth", type: "flashcard" },
+            { term: "Compass Rose", definition: "The map tool showing North, South, East, and West directions", type: "flashcard" },
+            { term: "Map Key (Legend)", definition: "The box on a map that explains what colors and symbols stand for", type: "flashcard" },
+            { term: "Equator", definition: "The warm middle belt around the center of the Earth", type: "flashcard" }
+          ],
+          quizQuestions: [
+            {
+              id: 'q1',
+              type: 'multiple-choice',
+              question: "How many continents are there on our Earth?",
+              options: ["4 continents", "7 continents", "10 continents", "12 continents"],
+              correctIndex: 1,
+              explanation: "There are 7 continents! Asia, Africa, North America, South America, Antarctica, Europe, and Australia!"
+            },
+            {
+              id: 'q2',
+              type: 'multiple-choice',
+              question: "On a compass rose, what direction does the top arrow usually point towards?",
+              options: ["East", "South", "North", "West"],
+              correctIndex: 2,
+              explanation: "North points straight up! Never Eat Soggy Waffles: North, East, South, West!"
+            },
+            {
+              id: 'q3',
+              type: 'multiple-choice',
+              question: "Which of these is the largest ocean on the entire planet?",
+              options: ["Pacific Ocean", "Atlantic Ocean", "Arctic Ocean", "Indian Ocean"],
+              correctIndex: 0,
+              explanation: "The Pacific Ocean is the biggest ocean in the world!"
+            },
+            {
+              id: 'q4',
+              type: 'multiple-choice',
+              question: "What is the name of the icy continent at the very bottom (South Pole) of the globe?",
+              options: ["Africa", "Australia", "Antarctica", "Europe"],
+              correctIndex: 2,
+              explanation: "Antarctica! Brrr! Home to penguins and freezing ice sheets!"
+            },
+            {
+              id: 'q5',
+              type: 'multiple-choice',
+              question: "What part of a map explains what all the symbols and colors mean?",
+              options: ["The Map Key (or Legend)", "The Ruler", "The Compass", "The Title"],
+              correctIndex: 0,
+              explanation: "The Map Key (Legend) unlocks the secret code of map symbols! Good detective work!"
+            }
+          ]
+        };
+      }
+    }
+
+    // Only assign flower diagram if explicitly about flower or plant botany
+    const isFlowerDiagram = /flower|petal|stamen|pistil|sepal|pollin|botany/i.test(combined);
+    if (isFlowerDiagram) {
       return {
-        studentId: 'caleb',
+        studentId: isCaleb ? 'caleb' : 'christian',
         subject: 'Science',
         diagramType: 'flower',
-        title: `Biology & Plant Reproduction (${pageCount}-Page Packet)`,
+        title: `Biology & Plant Reproduction (${firstDocName})`,
         notes: `Combined science packet spanning ${pageCount} pages on flower anatomy, pollination, and photosynthesis.`,
         studyGuide: {
-          summary: "Plant anatomy is just like an NFL offensive line: every part has a distinct blocking or scoring assignment to produce seeds!",
+          summary: "Plant anatomy is just like a championship team: every part has a distinct blocking or scoring assignment to produce seeds!",
           keyRules: [
             "Petal (Pin A): Bright colorful leaves that attract pollinators like bees and hummingbirds.",
             "Stamen (Pin B): The male organ (anther + filament) that manufactures pollen dust.",
             "Pistil (Pin C): The sticky female organ (stigma, style, ovary) that catches pollen to grow seeds.",
             "Sepal (Pin D): Green protective leaves at the base that shielded the baby bud."
           ],
-          dadExample: "Think of pollen like a soccer ball: the Stamen kicks it, the bee acts as the midfielder carrying it, and the sticky Pistil catches it for a goal! Boom!"
+          dadExample: "Think of pollen like a soccer ball: the Stamen kicks it, the bee carries it, and the sticky Pistil catches it for a goal! Boom!"
         },
         memorizationItems: [
           { term: "Petal", definition: "Colorful leaf designed to attract insect pollinators", type: "flashcard" },
@@ -1268,7 +1433,7 @@ Return strict raw JSON with:
             question: "Look at the flower diagram: Which letter points to the PETAL (attracts pollinators)?",
             options: ["Letter B", "Letter A", "Letter D", "Letter E"],
             correctIndex: 1,
-            explanation: "Letter A points to the Petal! Flashy like team colors in FIFA!"
+            explanation: "Letter A points to the Petal! Flashy like team colors!"
           },
           {
             id: 'q2',
@@ -1298,7 +1463,7 @@ Return strict raw JSON with:
             question: "Which letter points to the SEPAL (the green leaves protecting the young bud)?",
             options: ["Pin A", "Pin B", "Pin D", "Pin E"],
             correctIndex: 2,
-            explanation: "Pin D is the Sepal! Nature's Captain America shield for the baby flower bud!"
+            explanation: "Pin D is the Sepal! Nature's shield for the baby flower bud!"
           },
           {
             id: 'q5',
@@ -1312,15 +1477,19 @@ Return strict raw JSON with:
           }
         ]
       };
-    } else {
+    }
+
+    // Only assign insect diagram if explicitly about insects or bugs
+    const isInsectDiagram = /insect|bug|thorax|abdomen|antennae|jointed legs|exoskeleton/i.test(combined);
+    if (isInsectDiagram) {
       return {
-        studentId: 'christian',
+        studentId: isCaleb ? 'caleb' : 'christian',
         subject: 'Science',
         diagramType: 'insect',
-        title: `Insect Anatomy: Bug Identification (${pageCount}-Page Packet)`,
-        notes: `Elementary science packet spanning ${pageCount} pages on identifying insect body parts.`,
+        title: `Insect Anatomy: Bug Identification (${firstDocName})`,
+        notes: `Science packet spanning ${pageCount} pages on identifying insect body parts.`,
         studyGuide: {
-          summary: "Every insect in the world has 3 main body segments, 2 feelers, and 6 legs—just like an army of Minions building gadgets!",
+          summary: "Every insect in the world has 3 main body segments, 2 feelers, and 6 legs!",
           keyRules: [
             "Head (Pin B): Holds the compound eyes, mouth, and antenna feelers.",
             "Thorax (Pin C): The middle engine! ALL 6 legs and wings connect exclusively to the thorax.",
@@ -1389,6 +1558,43 @@ Return strict raw JSON with:
         ]
       };
     }
+
+    // General Studies Fallback (NEVER defaults to Science/Biology!)
+    return {
+      studentId: isCaleb ? 'caleb' : 'christian',
+      subject: 'General Studies',
+      diagramType: null,
+      title: `${firstDocName} (Comprehensive Study Unit)`,
+      notes: `Synthesized ${pageCount} document(s) on ${firstDocName}.`,
+      studyGuide: {
+        summary: isCaleb 
+          ? `Tactical study breakdown for ${firstDocName}. Review core concepts and dominate the quiz!` 
+          : `Super Brain mission with ${firstDocName}! Read through and conquer the quiz!`,
+        keyRules: [
+          "Carefully review the main ideas in each section.",
+          "Identify key terms and definitions before quizzing.",
+          "Double-check every answer before submitting."
+        ],
+        dadExample: isCaleb 
+          ? "Think like Tony Stark analyzing data: break complex questions into simple components." 
+          : "Kid Danger and Captain Man rule: take your time and read the full question! Zoo-Wee Mama!"
+      },
+      memorizationItems: [
+        { term: "Core Concept", definition: `The central theme or primary idea of ${firstDocName}`, type: "flashcard" },
+        { term: "Key Principle", definition: "A foundational rule or fact governing this subject", type: "flashcard" },
+        { term: "Analysis", definition: "Examining details carefully to understand meaning and connections", type: "flashcard" }
+      ],
+      quizQuestions: [
+        {
+          id: 'q1',
+          type: 'multiple-choice',
+          question: `What is the primary topic of this study unit?`,
+          options: [firstDocName, "Unrelated Science Topic", "Random Exercise", "None of the above"],
+          correctIndex: 0,
+          explanation: `This unit is dedicated to mastering ${firstDocName}!`
+        }
+      ]
+    };
   }
 
   // ==========================================
@@ -2287,6 +2493,10 @@ Return strict raw JSON with:
 
     navigate(viewName, unitId = null) {
       this.currentView = viewName;
+      if (viewName === 'upload') {
+        this.packetPages = [];
+        window._pendingNewUnit = null;
+      }
       if (unitId) {
         this.activeUnitId = unitId;
       }
@@ -2969,9 +3179,9 @@ Return strict raw JSON with:
 
                 <label class="cursor-pointer border-2 border-dashed border-indigo-300 hover:border-indigo-500 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-1 bg-indigo-50/20 hover:bg-indigo-50/50 transition-all h-44">
                   <span class="text-2xl text-indigo-600">+</span>
-                  <span class="text-xs font-bold text-indigo-700">Add Page / File</span>
-                  <span class="text-[10px] text-indigo-400">Photo, PDF, DOCX</span>
-                  <input type="file" accept="image/*,video/*,.pdf,.docx,.doc,.txt,.rtf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/*" multiple class="hidden" onchange="window.DadApp.handlePacketFileInput(event)" />
+                  <span class="text-xs font-bold text-indigo-700">Add Next Page</span>
+                  <span class="text-[10px] text-indigo-400">Appends to packet</span>
+                  <input type="file" accept="image/*,video/*,.pdf,.docx,.doc,.txt,.rtf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/*" multiple class="hidden" onchange="window.DadApp.handlePacketFileInput(event, false)" />
                 </label>
               </div>
             ` : `
@@ -2984,29 +3194,41 @@ Return strict raw JSON with:
               </div>
             `}
 
+            <div class="flex items-center justify-between p-3.5 bg-blue-50/70 rounded-2xl border border-blue-200 text-xs text-blue-900">
+              <div class="flex items-center gap-2">
+                <span class="text-base">📄</span>
+                <span><strong>Fresh Upload:</strong> Selecting any document or PDF automatically clears old files to analyze just your new upload.</span>
+              </div>
+              ${pageCount > 0 ? `
+                <button onclick="window.DadApp.clearPacketPages()" class="px-3 py-1 rounded-xl bg-white border border-blue-200 font-bold hover:bg-blue-100 text-blue-800 shadow-xs transition-all">
+                  Reset / Clear All ✕
+                </button>
+              ` : ''}
+            </div>
+
             <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
               <label class="cursor-pointer px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 flex items-center gap-2">
                 <span>📸</span>
                 <span>${pageCount === 0 ? 'Snap Page 1' : 'Snap Next Page'}</span>
-                <input type="file" accept="image/*" capture="environment" class="hidden" onchange="window.DadApp.handlePacketFileInput(event)" />
+                <input type="file" accept="image/*" capture="environment" class="hidden" onchange="window.DadApp.handlePacketFileInput(event, ${pageCount === 0 ? 'true' : 'false'})" />
               </label>
 
               <label class="cursor-pointer px-4 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm border border-slate-200 transition-all active:scale-95 flex items-center gap-2">
                 <span>🖼️</span>
                 <span>Choose Photos</span>
-                <input type="file" accept="image/*" multiple class="hidden" onchange="window.DadApp.handlePacketFileInput(event)" />
+                <input type="file" accept="image/*" multiple class="hidden" onchange="window.DadApp.handlePacketFileInput(event, ${pageCount === 0 ? 'true' : 'false'})" />
               </label>
 
-              <label class="cursor-pointer px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 flex items-center gap-2" title="Select files such as PDFs, Word DOCX, or text worksheets">
+              <label class="cursor-pointer px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 flex items-center gap-2" title="Select files such as PDFs, Word DOCX, or text worksheets (starts fresh)">
                 <span>📁</span>
                 <span>Upload Files (PDF, Word DOCX)</span>
-                <input type="file" accept=".pdf,.docx,.doc,.txt,.rtf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/*" multiple class="hidden" onchange="window.DadApp.handlePacketFileInput(event)" />
+                <input type="file" accept=".pdf,.docx,.doc,.txt,.rtf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/*" multiple class="hidden" onchange="window.DadApp.handlePacketFileInput(event, true)" />
               </label>
 
               <label class="cursor-pointer px-4 py-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs sm:text-sm border border-amber-200 transition-all active:scale-95 flex items-center gap-2" title="Record or upload a quick video flipping through the pages">
                 <span>🎥</span>
                 <span>Record Video Scan</span>
-                <input type="file" accept="video/*" capture="environment" class="hidden" onchange="window.DadApp.handlePacketFileInput(event)" />
+                <input type="file" accept="video/*" capture="environment" class="hidden" onchange="window.DadApp.handlePacketFileInput(event, ${pageCount === 0 ? 'true' : 'false'})" />
               </label>
             </div>
           </div>
@@ -3046,20 +3268,26 @@ Return strict raw JSON with:
       `;
     }
 
-    handlePacketFileInput(e) {
+    handlePacketFileInput(e, wipePrevious = true) {
       if (e.target && e.target.files && e.target.files.length > 0) {
-        this.addFilesToPacket(Array.from(e.target.files));
+        this.addFilesToPacket(Array.from(e.target.files), wipePrevious);
+        e.target.value = '';
       }
     }
 
     handlePacketDrop(e) {
       e.preventDefault();
       if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        this.addFilesToPacket(Array.from(e.dataTransfer.files));
+        this.addFilesToPacket(Array.from(e.dataTransfer.files), true);
       }
     }
 
-    async addFilesToPacket(files) {
+    async addFilesToPacket(files, wipePrevious = true) {
+      if (wipePrevious) {
+        this.packetPages = [];
+        window._pendingNewUnit = null;
+      }
+
       const formatBytes = (bytes) => {
         if (!bytes) return '';
         if (bytes < 1024) return bytes + ' B';
@@ -3131,6 +3359,12 @@ Return strict raw JSON with:
         } else if (isPdf) {
           mimeType = 'application/pdf';
           dataUrl = await readFileAsDataURL(file);
+          try {
+            const buffer = await readFileAsArrayBuffer(file);
+            extractedText = await extractPdfText(buffer);
+          } catch (err) {
+            console.warn('PDF extraction error:', err);
+          }
         } else {
           dataUrl = await readFileAsDataURL(file);
           if (!mimeType) {
