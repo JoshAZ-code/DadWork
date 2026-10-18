@@ -1033,10 +1033,67 @@
     return '';
   }
 
+  function compressImageFile(file, maxDim = 1400, quality = 0.82) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => resolve(e.target.result || '');
+        img.src = e.target.result;
+      };
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function testGeminiApiKey(key) {
+    if (!key || !key.trim()) return { ok: false, message: 'Please enter a Gemini API Key.' };
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key.trim()}`;
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: "Hello! Reply with the single word 'READY'." }] }]
+        })
+      });
+      if (!response.ok) {
+        let errMsg = response.statusText;
+        try {
+          const errData = await response.json();
+          errMsg = errData.error?.message || errMsg;
+        } catch(je) {}
+        return { ok: false, message: `Google Gemini API Error (${response.status}): ${errMsg}` };
+      }
+      return { ok: true, message: 'Connection verified! Gemini 1.5 Flash Vision is active and ready to read your homework packets.' };
+    } catch (e) {
+      return { ok: false, message: e.message || 'Network connection failed' };
+    }
+  }
+
   async function analyzeWorksheetPacket(pages, preferredStudentId) {
     const apiKey = getGeminiApiKey();
     if (!apiKey) {
-      return simulateMultiPageAnalysis(pages, preferredStudentId);
+      throw new Error("NO_API_KEY");
     }
 
     const pageCount = pages ? pages.length : 1;
@@ -1046,21 +1103,21 @@ You are the AI engine for "DadWork", an interactive homework app built by a lovi
 - Christian: Elementary School. Interests: TV shows (Henry Danger / Captain Man), Roblox games (Dandy's World), Minions movies (bananas, silly laughs), Peppa Pig (Daddy Pig muddy puddles), books (Dog Man by Dav Pilkey, Diary of a Wimpy Kid "Zoo-Wee Mama!").
 
 ANALYZE THIS MULTI-PAGE HOMEWORK PACKET / STUDY GUIDE / ATTACHED FILES (Containing ${pageCount} file(s)/page(s): photos, videos, PDFs, or Word documents):
-1. Review all pages, documents, and attached materials in order.
+1. Review all pages, documents, photos, handwriting, and attached materials in order.
 2. Check if the homework is a BIOLOGICAL or SCIENTIFIC DIAGRAM to label (e.g., insect/bug parts, flower parts, plant/tree, cell, or human organ).
-   If so, set "diagramType" to "insect" or "flower" or "custom".
+   If so, set "diagramType" to "insect" or "flower" or "custom". If not, set "diagramType" to null.
 3. Identify who this homework belongs to (either "caleb" or "christian"). Look at student name handwriting, document headers, grade level, topic difficulty. Default to "${preferredStudentId || 'christian'}".
 4. Identify School Subject ("Math", "Spelling", "Vocabulary", "Science", "Social Studies", "Reading", etc.).
-5. Determine a clear Unit Title.
+5. Determine a clear, accurate Unit Title summarizing the actual topic of the homework.
 6. Synthesize the whole packet / document:
-   a) A unified study guide / kitchen table lesson explaining how to perform all exercises across the packet/document.
-   b) 4 to 8 key memorization items / flashcards / vocabulary rules.
-   c) A comprehensive quiz with up to 10 questions (never more than 10). If it is a biological diagram, include diagram identification questions with "diagramType" and "activeMarker" (A, B, C, D, E).
+   a) A unified study guide / kitchen table lesson explaining how to perform all exercises across the packet/document. Use dad humor tailored to ${preferredStudentId === 'caleb' ? "Caleb's interests (Marvel, FIFA, Fortnite)" : "Christian's interests (Minions, Dog Man, Henry Danger)"}.
+   b) 4 to 8 key memorization items / flashcards / vocabulary rules directly extracted from the homework.
+   c) A comprehensive quiz with between 5 and 10 questions (never more than 10) directly testing the exact exercises and problems from the packet. If it is a biological diagram, include diagram identification questions with "diagramType" and "activeMarker" (A, B, C, D, E).
 
 Return strict raw JSON with:
 {
   "studentId": "caleb" | "christian",
-  "subject": "Math" | "Spelling" | "Science" | "...",
+  "subject": "Math" | "Spelling" | "Science" | "Social Studies" | "Reading" | "...",
   "diagramType": "insect" | "flower" | null,
   "title": "Title",
   "notes": "Extracted summary of what was covered across the ${pageCount} file(s)",
@@ -1087,54 +1144,62 @@ Return strict raw JSON with:
 }
 `;
 
-    try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
-      const parts = [{ text: promptText }];
-      pages.forEach(p => {
-        if (p.extractedText && (p.isDocx || p.isDoc || p.isTxt)) {
+    const parts = [{ text: promptText }];
+    pages.forEach(p => {
+      if (p.extractedText && (p.isDocx || p.isDoc || p.isTxt)) {
+        parts.push({
+          text: `\n\n=== ATTACHED HOMEWORK DOCUMENT: "${p.name || 'document'}" ===\n${p.extractedText}\n=== END DOCUMENT ===\n`
+        });
+      } else if (p.isPdf) {
+        if (p.extractedText) {
           parts.push({
-            text: `\n\n=== ATTACHED HOMEWORK DOCUMENT: "${p.name || 'document'}" ===\n${p.extractedText}\n=== END DOCUMENT ===\n`
-          });
-        } else if (p.isPdf) {
-          const base64Clean = p.data.includes('base64,') ? p.data.split('base64,')[1] : p.data;
-          parts.push({
-            inline_data: {
-              mime_type: 'application/pdf',
-              data: base64Clean
-            }
-          });
-        } else {
-          const base64Clean = p.data.includes('base64,') ? p.data.split('base64,')[1] : p.data;
-          parts.push({
-            inline_data: {
-              mime_type: p.mimeType || (p.isVideo ? 'video/mp4' : 'image/jpeg'),
-              data: base64Clean
-            }
+            text: `\n\n=== EXTRACTED PDF TEXT FROM "${p.name || 'document.pdf'}": ===\n${p.extractedText}\n=== END PDF TEXT ===\n`
           });
         }
-      });
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 3000, responseMimeType: "application/json" }
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Gemini API Error (${response.status})`);
+        const base64Clean = p.data.includes('base64,') ? p.data.split('base64,')[1] : p.data;
+        parts.push({
+          inlineData: {
+            mimeType: 'application/pdf',
+            data: base64Clean
+          }
+        });
+      } else {
+        const base64Clean = p.data.includes('base64,') ? p.data.split('base64,')[1] : p.data;
+        parts.push({
+          inlineData: {
+            mimeType: p.mimeType || (p.isVideo ? 'video/mp4' : 'image/jpeg'),
+            data: base64Clean
+          }
+        });
       }
-      const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      const clean = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
-      return JSON.parse(clean);
-    } catch (e) {
-      console.warn('Gemini request failed, falling back to smart simulation:', e);
-      return simulateMultiPageAnalysis(pages, preferredStudentId);
+    });
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: 3000, responseMimeType: "application/json" }
+      })
+    });
+
+    if (!response.ok) {
+      let errDetails = response.statusText;
+      try {
+        const errJson = await response.json();
+        errDetails = errJson.error?.message || errDetails;
+      } catch(je) {}
+      throw new Error(`Google Gemini Error (${response.status}): ${errDetails}`);
     }
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) {
+      throw new Error("Gemini returned an empty response candidate.");
+    }
+    const clean = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+    return JSON.parse(clean);
   }
 
   function simulateMultiPageAnalysis(pages, preferredStudentId) {
@@ -1559,39 +1624,454 @@ Return strict raw JSON with:
       };
     }
 
-    // General Studies Fallback (NEVER defaults to Science/Biology!)
+    // Check if filename is generic (e.g. image.jpg, photo.jpg, IMG_001)
+    const isGenericDoc = /^(image|img|photo|camera|dsc|screenshot|pic|picture|scan|frame|file|\d+|download)$/i.test((firstDocName || '').trim());
+    const effectiveTopic = isGenericDoc ? (isCaleb ? "STEM Logic & Science Analysis" : "Science & Nature Exploration") : firstDocName;
+    const effectiveSubject = isGenericDoc ? 'Science' : 'General Studies';
+
+    return buildSmartStudyUnit(isCaleb ? 'caleb' : 'christian', effectiveSubject, effectiveTopic, `Synthesized ${pageCount} document(s) on ${effectiveTopic}.`);
+  }
+
+  function buildSmartStudyUnit(studentId, subject, topicTitle, customNotes = '', diagramType = null) {
+    const isCaleb = studentId === 'caleb';
+    const cleanTopic = (topicTitle && topicTitle.trim()) ? topicTitle.trim() : (isCaleb ? "Middle School Challenge" : "Elementary Learning Mission");
+    const sub = subject || 'General Studies';
+
+    // 1. Math
+    if (sub === 'Math' || /math|fraction|division|multiply|addition|subtract|geometry|algebra|number/i.test(cleanTopic)) {
+      if (isCaleb) {
+        return {
+          studentId: 'caleb',
+          subject: 'Math',
+          diagramType: null,
+          title: `Middle School Math: ${cleanTopic}`,
+          notes: customNotes || `Focused math problem solving and equations for Caleb on ${cleanTopic}.`,
+          studyGuide: {
+            summary: "Tactical math gameplan! Like mapping out a fast break in NBA 2K or an Avengers tactical squad formation.",
+            keyRules: [
+              "Always balance both sides of an equation.",
+              "Look for common factors to reduce fractions or simplify terms.",
+              "Take your time to re-check calculation steps before locking in your answer."
+            ],
+            dadExample: "If the Avengers field 12 heroes and 3/4 of them are flying, 12 × (3/4) = 9 heroes in the air! High IQ math move!"
+          },
+          memorizationItems: [
+            { term: "Variable", definition: "A symbol (usually a letter like x) representing an unknown value", type: "flashcard" },
+            { term: "Equation", definition: "A mathematical statement showing that two expressions are equal", type: "flashcard" },
+            { term: "Denominator", definition: "The bottom part of a fraction indicating the total units", type: "flashcard" },
+            { term: "Product", definition: "The result of multiplying numbers together", type: "flashcard" }
+          ],
+          quizQuestions: [
+            {
+              id: 'q1',
+              type: 'multiple-choice',
+              question: "If 4x + 8 = 28, what is the value of x?",
+              options: ["x = 5", "x = 4", "x = 7", "x = 6"],
+              correctIndex: 0,
+              explanation: "Subtract 8 from both sides: 4x = 20. Divide by 4: x = 5! Pure sharpshooter accuracy!"
+            },
+            {
+              id: 'q2',
+              type: 'multiple-choice',
+              question: "What is 3/5 expressed as a percentage?",
+              options: ["35%", "50%", "60%", "75%"],
+              correctIndex: 2,
+              explanation: "3/5 = 6/10 = 0.60 = 60%! Clean swish from downtown!"
+            },
+            {
+              id: 'q3',
+              type: 'multiple-choice',
+              question: "A soccer team won 15 matches and lost 5 matches. What ratio represents wins to total games?",
+              options: ["15 to 5", "3 to 4", "1 to 3", "2 to 5"],
+              correctIndex: 1,
+              explanation: "Total games = 20. 15/20 reduces to 3/4! Elite tournament stats!"
+            },
+            {
+              id: 'q4',
+              type: 'multiple-choice',
+              question: "What is the perimeter of a rectangle with length 12 cm and width 8 cm?",
+              options: ["20 cm", "96 cm", "40 cm", "48 cm"],
+              correctIndex: 2,
+              explanation: "Perimeter = 2(L + W) = 2(12 + 8) = 2(20) = 40 cm! Locked down defense!"
+            },
+            {
+              id: 'q5',
+              type: 'multiple-choice',
+              question: "Evaluate: (-3) × 4 + 18",
+              options: ["6", "-6", "30", "12"],
+              correctIndex: 0,
+              explanation: "(-3) × 4 = -12. Then -12 + 18 = 6! Rocket League aerial goal!"
+            }
+          ]
+        };
+      } else {
+        return {
+          studentId: 'christian',
+          subject: 'Math',
+          diagramType: null,
+          title: `Elementary Math Mission: ${cleanTopic}`,
+          notes: customNotes || `Arithmetic and problem solving unit for Christian on ${cleanTopic}.`,
+          studyGuide: {
+            summary: "Captain Man and Kid Danger are cracking super addition, subtraction, and multiplication codes today!",
+            keyRules: [
+              "Line up numbers carefully by tens and ones.",
+              "Carry the 1 when numbers add up to 10 or more.",
+              "Double check your work like Bark Knight sniffing for clues!"
+            ],
+            dadExample: "If Christian gets 15 bananas and Gru's Minions steal 6, Christian still has 9 bananas left! Zoo-Wee Mama!"
+          },
+          memorizationItems: [
+            { term: "Sum", definition: "The total answer when you add numbers together", type: "flashcard" },
+            { term: "Difference", definition: "The answer when you subtract one number from another", type: "flashcard" },
+            { term: "Product", definition: "The total when you multiply numbers", type: "flashcard" },
+            { term: "Even Number", definition: "A number that ends in 0, 2, 4, 6, or 8 and can be split into two equal halves", type: "flashcard" }
+          ],
+          quizQuestions: [
+            {
+              id: 'q1',
+              type: 'multiple-choice',
+              question: "What is 47 + 28?",
+              options: ["65", "75", "73", "85"],
+              correctIndex: 1,
+              explanation: "7 + 8 = 15 (write 5, carry 1). 1 + 4 + 2 = 7. Total is 75! Super brain power!"
+            },
+            {
+              id: 'q2',
+              type: 'multiple-choice',
+              question: "What is 8 × 4?",
+              options: ["28", "32", "36", "24"],
+              correctIndex: 1,
+              explanation: "8 × 4 = 32! Faster than Captain Man sliding down the Man-Copter tube!"
+            },
+            {
+              id: 'q3',
+              type: 'multiple-choice',
+              question: "If Christian has 60 Dandy's World tokens and buys an item for 25 tokens, how many tokens are left?",
+              options: ["35 tokens", "45 tokens", "30 tokens", "25 tokens"],
+              correctIndex: 0,
+              explanation: "60 - 25 = 35 tokens! You're dominating the Dandy's World elevators!"
+            },
+            {
+              id: 'q4',
+              type: 'multiple-choice',
+              question: "Which of the following is an EVEN number?",
+              options: ["17", "23", "38", "41"],
+              correctIndex: 2,
+              explanation: "38 ends in 8, so it is an even number! Zoo-Wee Mama!"
+            },
+            {
+              id: 'q5',
+              type: 'multiple-choice',
+              question: "What is 54 ÷ 6?",
+              options: ["8", "7", "9", "6"],
+              correctIndex: 2,
+              explanation: "9 × 6 = 54, so 54 ÷ 6 = 9! High five from Daddy Pig!"
+            }
+          ]
+        };
+      }
+    }
+
+    // 2. Science
+    if (sub === 'Science' || /science|bio|animal|plant|insect|flower|body|cell|habitat|weather|solar|space/i.test(cleanTopic)) {
+      if (isCaleb) {
+        return {
+          studentId: 'caleb',
+          subject: 'Science',
+          diagramType: diagramType,
+          title: `Life Science & Ecology: ${cleanTopic}`,
+          notes: customNotes || `Scientific analysis and lab concepts for Caleb on ${cleanTopic}.`,
+          studyGuide: {
+            summary: "Stark Industries lab briefing: nature operates on precise physical laws and ecological energy transfers!",
+            keyRules: [
+              "Producers (plants) create energy from sunlight via photosynthesis.",
+              "Consumers eat other organisms to gain calories and nutrients.",
+              "Decomposers recycle dead matter back into the soil cycle."
+            ],
+            dadExample: "Think of an ecosystem like the FIFA pitch: plants are the midfielders setting up plays, herbivores are the forwards, and decomposers sweep the ball back to start again!"
+          },
+          memorizationItems: [
+            { term: "Photosynthesis", definition: "The process plants use to convert sunlight into glucose and oxygen", type: "flashcard" },
+            { term: "Ecosystem", definition: "A biological community of interacting organisms and their physical environment", type: "flashcard" },
+            { term: "Adaptation", definition: "A genetic trait that helps an organism survive in its environment", type: "flashcard" },
+            { term: "Organelle", definition: "A specialized subunit within a cell that has a specific function", type: "flashcard" }
+          ],
+          quizQuestions: [
+            {
+              id: 'q1',
+              type: 'multiple-choice',
+              question: "What gas do green plants absorb from the air during photosynthesis?",
+              options: ["Oxygen", "Carbon Dioxide", "Nitrogen", "Helium"],
+              correctIndex: 1,
+              explanation: "Plants take in Carbon Dioxide (CO2) and release Oxygen! Tony Stark approved!"
+            },
+            {
+              id: 'q2',
+              type: 'multiple-choice',
+              question: "Which organelle is considered the 'powerhouse of the cell'?",
+              options: ["Nucleus", "Mitochondria", "Ribosome", "Cell Wall"],
+              correctIndex: 1,
+              explanation: "Mitochondria produce ATP cellular energy! Like an Arc Reactor for the cell!"
+            },
+            {
+              id: 'q3',
+              type: 'multiple-choice',
+              question: "In an ecosystem food chain, what role do green plants occupy?",
+              options: ["Primary Consumers", "Apex Predators", "Primary Producers", "Decomposers"],
+              correctIndex: 2,
+              explanation: "Plants are primary producers because they generate their own food from sunlight!"
+            },
+            {
+              id: 'q4',
+              type: 'multiple-choice',
+              question: "Which of the following is an example of an abiotic (non-living) factor in an ecosystem?",
+              options: ["Sunlight and Temperature", "Bacteria", "Oak Trees", "Earthworms"],
+              correctIndex: 0,
+              explanation: "Sunlight, water, soil, and temperature are abiotic factors!"
+            },
+            {
+              id: 'q5',
+              type: 'multiple-choice',
+              question: "What type of symbiotic relationship benefits both organisms involved?",
+              options: ["Parasitism", "Commensalism", "Mutualism", "Competition"],
+              correctIndex: 2,
+              explanation: "Mutualism = Win/Win teamwork! Like Spider-Man and Iron Man teaming up!"
+            }
+          ]
+        };
+      } else {
+        return {
+          studentId: 'christian',
+          subject: 'Science',
+          diagramType: diagramType,
+          title: `Super Science Mission: ${cleanTopic}`,
+          notes: customNotes || `Elementary science concepts and nature discoveries for Christian on ${cleanTopic}.`,
+          studyGuide: {
+            summary: "Captain Man and Kid Danger are investigating the wonders of science! Put on your safety goggles!",
+            keyRules: [
+              "Living things need food, water, air, and shelter to survive.",
+              "Observe details carefully using your five senses.",
+              "Ask questions and test your predictions like Dog Man on the case!"
+            ],
+            dadExample: "Minions love bananas because bananas give them energy to build silly contraptions! Zoo-Wee Mama!"
+          },
+          memorizationItems: [
+            { term: "Habitat", definition: "The natural home or environment where an animal or plant lives", type: "flashcard" },
+            { term: "Herbivore", definition: "An animal that only eats plants and leaves", type: "flashcard" },
+            { term: "Carnivore", definition: "An animal that eats meat and other animals", type: "flashcard" },
+            { term: "Metamorphosis", definition: "The big change an animal goes through as it grows (like caterpillar to butterfly)", type: "flashcard" }
+          ],
+          quizQuestions: [
+            {
+              id: 'q1',
+              type: 'multiple-choice',
+              question: "What do all living animals need to survive?",
+              options: ["Water, food, and air", "Candy and soda", "A smartphone", "Toy lasers"],
+              correctIndex: 0,
+              explanation: "All animals need food, water, air, and safe shelter to live and grow!"
+            },
+            {
+              id: 'q2',
+              type: 'multiple-choice',
+              question: "What is an animal that eats ONLY plants called?",
+              options: ["Carnivore", "Herbivore", "Omnivore", "Insectivore"],
+              correctIndex: 1,
+              explanation: "An herbivore eats delicious greens, plants, and bananas! Like Bob the Minion!"
+            },
+            {
+              id: 'q3',
+              type: 'multiple-choice',
+              question: "What baby creature hatches from an egg before turning into a butterfly?",
+              options: ["Tadpole", "Caterpillar", "Puppy", "Bird"],
+              correctIndex: 1,
+              explanation: "A caterpillar hatches, munches on leaves, makes a chrysalis, and becomes a butterfly!"
+            },
+            {
+              id: 'q4',
+              type: 'multiple-choice',
+              question: "Which habitat is very cold, icy, and home to emperor penguins?",
+              options: ["Tropical Rainforest", "Desert", "Polar Region / Antarctica", "Ocean Coral Reef"],
+              correctIndex: 2,
+              explanation: "Polar regions like Antarctica are freezing cold! Brrr! Put on a coat!"
+            },
+            {
+              id: 'q5',
+              type: 'multiple-choice',
+              question: "What part of a tree acts like a sponge to drink water from the soil?",
+              options: ["The leaves", "The bark", "The roots", "The branches"],
+              correctIndex: 2,
+              explanation: "The roots anchor the tree and soak up cool water and minerals from the ground!"
+            }
+          ]
+        };
+      }
+    }
+
+    // 3. Social Studies / Geography
+    if (sub === 'Social Studies' || /geograph|continent|map|history|country|state|capital/i.test(cleanTopic)) {
+      if (isCaleb) {
+        return {
+          studentId: 'caleb',
+          subject: 'Social Studies',
+          diagramType: null,
+          title: `World Geography & Global Studies: ${cleanTopic}`,
+          notes: customNotes || `Global navigation and history studies for Caleb on ${cleanTopic}.`,
+          studyGuide: {
+            summary: "Tactical map briefing: understand the globe like the Avengers planning an international mission across all 7 continents!",
+            keyRules: [
+              "Continents: Asia, Africa, North America, South America, Antarctica, Europe, Australia/Oceania.",
+              "Oceans: Pacific, Atlantic, Indian, Southern, Arctic.",
+              "Lines of Navigation: The Equator (0° Latitude) and Prime Meridian (0° Longitude)."
+            ],
+            dadExample: "If you're flying to a FIFA tournament in London, you're crossing the Prime Meridian into the Eastern Hemisphere!"
+          },
+          memorizationItems: [
+            { term: "Equator", definition: "0° Latitude dividing Northern and Southern Hemispheres", type: "flashcard" },
+            { term: "Prime Meridian", definition: "0° Longitude running through Greenwich, England", type: "flashcard" },
+            { term: "Continent", definition: "One of the 7 massive landmasses on Earth", type: "flashcard" }
+          ],
+          quizQuestions: [
+            {
+              id: 'q1',
+              type: 'multiple-choice',
+              question: "Which line of latitude circles the exact middle of the globe at 0 degrees?",
+              options: ["Prime Meridian", "Equator", "Tropic of Cancer", "Arctic Circle"],
+              correctIndex: 1,
+              explanation: "The Equator sits right at 0° latitude!"
+            },
+            {
+              id: 'q2',
+              type: 'multiple-choice',
+              question: "Which continent is the largest both by land area and human population?",
+              options: ["Africa", "North America", "Asia", "Europe"],
+              correctIndex: 2,
+              explanation: "Asia is the largest continent in the world!"
+            },
+            {
+              id: 'q3',
+              type: 'multiple-choice',
+              question: "Which of the five world oceans is the largest and deepest?",
+              options: ["Atlantic Ocean", "Indian Ocean", "Pacific Ocean", "Arctic Ocean"],
+              correctIndex: 2,
+              explanation: "The Pacific Ocean covers more area than all the Earth's land combined!"
+            }
+          ]
+        };
+      } else {
+        return {
+          studentId: 'christian',
+          subject: 'Social Studies',
+          diagramType: null,
+          title: `Geography Explorer Mission: ${cleanTopic}`,
+          notes: customNotes || `Continents, oceans, and map reading adventures for Christian on ${cleanTopic}.`,
+          studyGuide: {
+            summary: "Captain Man and Kid Danger need your map skills to track villains across all 7 continents!",
+            keyRules: [
+              "There are 7 Continents on Earth where people and animals live.",
+              "There are 5 Big Oceans (Pacific, Atlantic, Indian, Southern, Arctic).",
+              "Never Eat Soggy Waffles: North (up), East (right), South (down), West (left)!"
+            ],
+            dadExample: "If Minions go looking for bananas in Antarctica, they better pack heavy parkas because it's at the icy bottom of the world! Zoo-Wee Mama!"
+          },
+          memorizationItems: [
+            { term: "Continent", definition: "A giant piece of land on Earth (there are 7!)", type: "flashcard" },
+            { term: "Ocean", definition: "A huge body of salt water covering most of the Earth", type: "flashcard" },
+            { term: "Compass Rose", definition: "The tool on a map showing North, South, East, and West", type: "flashcard" }
+          ],
+          quizQuestions: [
+            {
+              id: 'q1',
+              type: 'multiple-choice',
+              question: "How many continents are there on Earth?",
+              options: ["5 continents", "7 continents", "9 continents", "12 continents"],
+              correctIndex: 1,
+              explanation: "There are 7 continents! Asia, Africa, North America, South America, Antarctica, Europe, and Australia!"
+            },
+            {
+              id: 'q2',
+              type: 'multiple-choice',
+              question: "On a map compass rose, what direction does the top arrow point to?",
+              options: ["South", "East", "North", "West"],
+              correctIndex: 2,
+              explanation: "North points straight up! Never Eat Soggy Waffles!"
+            },
+            {
+              id: 'q3',
+              type: 'multiple-choice',
+              question: "What is the name of the icy continent at the South Pole where penguins live?",
+              options: ["Australia", "Antarctica", "Africa", "Europe"],
+              correctIndex: 1,
+              explanation: "Antarctica is the freezing icy continent at the bottom of the world!"
+            }
+          ]
+        };
+      }
+    }
+
+    // 4. General Studies / Reading Default
     return {
       studentId: isCaleb ? 'caleb' : 'christian',
-      subject: 'General Studies',
+      subject: 'Reading',
       diagramType: null,
-      title: `${firstDocName} (Comprehensive Study Unit)`,
-      notes: `Synthesized ${pageCount} document(s) on ${firstDocName}.`,
+      title: `${cleanTopic} (Mastery Unit)`,
+      notes: customNotes || `Curated reading and critical thinking unit on ${cleanTopic}.`,
       studyGuide: {
         summary: isCaleb 
-          ? `Tactical study breakdown for ${firstDocName}. Review core concepts and dominate the quiz!` 
-          : `Super Brain mission with ${firstDocName}! Read through and conquer the quiz!`,
+          ? `Tactical study breakdown for ${cleanTopic}. Master the key facts and dominate the quiz!` 
+          : `Super Brain adventure with ${cleanTopic}! Captain Man says read carefully and conquer the quiz!`,
         keyRules: [
-          "Carefully review the main ideas in each section.",
-          "Identify key terms and definitions before quizzing.",
-          "Double-check every answer before submitting."
+          "Carefully review the main ideas in each section before answering.",
+          "Identify key terms and definitions.",
+          "Take your time to re-read each question before selecting your choice."
         ],
         dadExample: isCaleb 
           ? "Think like Tony Stark analyzing data: break complex questions into simple components." 
-          : "Kid Danger and Captain Man rule: take your time and read the full question! Zoo-Wee Mama!"
+          : "Kid Danger rule: take your time and read the full question! Zoo-Wee Mama!"
       },
       memorizationItems: [
-        { term: "Core Concept", definition: `The central theme or primary idea of ${firstDocName}`, type: "flashcard" },
-        { term: "Key Principle", definition: "A foundational rule or fact governing this subject", type: "flashcard" },
-        { term: "Analysis", definition: "Examining details carefully to understand meaning and connections", type: "flashcard" }
+        { term: "Main Idea", definition: "The central point or most important thought in a passage", type: "flashcard" },
+        { term: "Context Clue", definition: "Hints found within a sentence or paragraph that help explain an unfamiliar word", type: "flashcard" },
+        { term: "Fact vs. Opinion", definition: "A fact can be proven true; an opinion is a personal belief or feeling", type: "flashcard" }
       ],
       quizQuestions: [
         {
           id: 'q1',
           type: 'multiple-choice',
-          question: `What is the primary topic of this study unit?`,
-          options: [firstDocName, "Unrelated Science Topic", "Random Exercise", "None of the above"],
+          question: `What is the most effective way to identify the 'main idea' of a reading passage?`,
+          options: [
+            "Look for the topic sentence and repeated keywords across the paragraphs",
+            "Read only the very last word of the story",
+            "Pick the longest word on the page",
+            "Guess randomly without reading"
+          ],
           correctIndex: 0,
-          explanation: `This unit is dedicated to mastering ${firstDocName}!`
+          explanation: "The main idea is supported by topic sentences and repeated key concepts throughout the text!"
+        },
+        {
+          id: 'q2',
+          type: 'multiple-choice',
+          question: "Which of the following is a FACT rather than an opinion?",
+          options: [
+            "Pizza is the most delicious dinner in the universe",
+            "Water boils at 212 degrees Fahrenheit (100°C) at sea level",
+            "Soccer is more fun to watch than basketball",
+            "Fortnite is the best video game ever created"
+          ],
+          correctIndex: 1,
+          explanation: "Water boiling at 212°F is a scientifically proven fact! High IQ deduction!"
+        },
+        {
+          id: 'q3',
+          type: 'multiple-choice',
+          question: "When you encounter an unfamiliar vocabulary word while reading, what should you do first?",
+          options: [
+            "Skip the entire chapter and close the book",
+            "Use context clues from the surrounding sentences to deduce its meaning",
+            "Erase the word from the paper",
+            "Assume the author made a spelling mistake"
+          ],
+          correctIndex: 1,
+          explanation: "Context clues in neighboring sentences reveal the meaning of unknown words!"
         }
       ]
     };
@@ -3101,6 +3581,7 @@ Return strict raw JSON with:
     renderUploadView() {
       const student = this.getStudent();
       const pageCount = this.packetPages.length;
+      const hasApiKey = !!getGeminiApiKey();
 
       return `
         <div class="max-w-3xl mx-auto space-y-6">
@@ -3111,6 +3592,52 @@ Return strict raw JSON with:
               Snap pages with camera, choose from photo library, record a video scan, or upload documents directly (PDFs, Word DOCX, and docs)! DadWork combines everything into a single tailored study unit.
             </p>
           </div>
+
+          <!-- GEMINI VISION AI STATUS BANNER -->
+          ${hasApiKey ? `
+            <div class="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div class="flex items-center gap-2.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse flex-shrink-0"></span>
+                <div>
+                  <span class="font-extrabold text-emerald-950">Gemini 1.5 Flash Vision AI: Connected</span>
+                  <p class="text-emerald-700 text-[11px]">Smartphone camera photos, handwriting, and diagrams will be visually read by AI.</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 self-end sm:self-auto flex-shrink-0">
+                <button onclick="window.DadApp.testApiKey()" class="px-3 py-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-bold transition-all flex items-center gap-1">
+                  <span>⚡</span> Test AI Connection
+                </button>
+                <button onclick="window.DadApp.openApiKeyModal()" class="px-2.5 py-1.5 rounded-lg bg-white border border-emerald-200 hover:bg-emerald-100 text-emerald-800 font-bold transition-all">
+                  ⚙️ Key
+                </button>
+              </div>
+            </div>
+          ` : `
+            <div class="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-2.5 text-xs text-amber-950">
+              <div class="flex items-start justify-between gap-2">
+                <div class="flex items-start gap-2">
+                  <span class="text-lg">💡</span>
+                  <div>
+                    <span class="font-extrabold text-amber-900">Visual Photo Reading Needs Free Gemini Key:</span>
+                    <p class="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                      To read handwriting and math problems directly from camera photos, DadWork connects to Google Gemini 1.5 Flash (100% free with no credit card). Without an API key, you can use the <strong>Topic Assistant</strong> to build tailored units instantly!
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="flex flex-wrap items-center gap-2 pt-1">
+                <button onclick="window.DadApp.openApiKeyModal()" class="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold transition-all shadow-xs flex items-center gap-1.5">
+                  <span>🔑</span> Enter Free Gemini Key
+                </button>
+                <button onclick="window.DadApp.openTopicAssistantModal()" class="px-3 py-1.5 rounded-xl bg-white border border-amber-300 hover:bg-amber-100 text-amber-900 font-bold transition-all flex items-center gap-1.5">
+                  <span>📝</span> Quick Topic Assistant
+                </button>
+                <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" class="text-[11px] text-amber-700 underline font-semibold hover:text-amber-900 ml-1">
+                  Get Free Key at Google AI Studio ↗
+                </a>
+              </div>
+            </div>
+          `}
 
           <div class="bg-white rounded-3xl p-5 sm:p-7 border border-slate-200 shadow-sm space-y-5">
             <div class="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -3230,6 +3757,11 @@ Return strict raw JSON with:
                 <span>Record Video Scan</span>
                 <input type="file" accept="video/*" capture="environment" class="hidden" onchange="window.DadApp.handlePacketFileInput(event, ${pageCount === 0 ? 'true' : 'false'})" />
               </label>
+
+              <button type="button" onclick="window.DadApp.openTopicAssistantModal()" class="px-4 py-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 font-bold text-xs sm:text-sm border border-indigo-200 transition-all active:scale-95 flex items-center gap-2" title="Create a customized lesson & quiz for Christian or Caleb directly by subject & topic">
+                <span>📝</span>
+                <span>Topic Assistant (Quick Builder)</span>
+              </button>
             </div>
           </div>
 
@@ -3365,6 +3897,13 @@ Return strict raw JSON with:
           } catch (err) {
             console.warn('PDF extraction error:', err);
           }
+        } else if (file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|heic|bmp|gif)$/i.test(lowerName)) {
+          mimeType = 'image/jpeg';
+          try {
+            dataUrl = await compressImageFile(file, 1400, 0.82);
+          } catch (ie) {
+            dataUrl = await readFileAsDataURL(file);
+          }
         } else {
           dataUrl = await readFileAsDataURL(file);
           if (!mimeType) {
@@ -3404,13 +3943,28 @@ Return strict raw JSON with:
     async startPacketAnalysis() {
       if (this.packetPages.length === 0) return;
 
+      const apiKey = getGeminiApiKey();
+      const hasTextExtraction = this.packetPages.some(p => p.extractedText && p.extractedText.trim().length > 20);
+
+      // If Dad uploaded camera photos without text extraction and without a Gemini API key:
+      if (!apiKey && !hasTextExtraction) {
+        this.showNoApiKeyModal();
+        return;
+      }
+
       const spinner = document.getElementById('upload-analyzing-spinner');
       const confirmBox = document.getElementById('upload-confirmation-modal');
 
       if (spinner) spinner.classList.remove('hidden');
 
       try {
-        const result = await analyzeWorksheetPacket(this.packetPages, this.currentStudentId);
+        let result;
+        if (apiKey) {
+          result = await analyzeWorksheetPacket(this.packetPages, this.currentStudentId);
+        } else {
+          result = simulateMultiPageAnalysis(this.packetPages, this.currentStudentId);
+        }
+
         if (spinner) spinner.classList.add('hidden');
         if (confirmBox) {
           confirmBox.classList.remove('hidden');
@@ -3418,7 +3972,12 @@ Return strict raw JSON with:
         }
       } catch (err) {
         if (spinner) spinner.classList.add('hidden');
-        alert(`Could not analyze packet: ${err.message}. DadWork will use smart simulation.`);
+        console.error('Packet analysis error:', err);
+        if (err.message === 'NO_API_KEY') {
+          this.showNoApiKeyModal();
+        } else {
+          this.showAnalysisErrorModal(err.message);
+        }
       }
     }
 
@@ -3710,6 +4269,370 @@ Return strict raw JSON with:
           </div>
         </div>
       `;
+    }
+
+    closeModal() {
+      const modal = document.getElementById('dadwork-global-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.innerHTML = '';
+      }
+    }
+
+    openModal(htmlContent) {
+      let modal = document.getElementById('dadwork-global-modal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'dadwork-global-modal';
+        document.body.appendChild(modal);
+      }
+      modal.className = "fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto animate-fade-in";
+      modal.innerHTML = `
+        <div class="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-6 max-h-[90vh] flex flex-col">
+          <button onclick="window.DadApp.closeModal()" class="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 flex items-center justify-center font-bold text-sm transition-all" title="Close">
+            ✕
+          </button>
+          <div class="p-6 sm:p-8 overflow-y-auto space-y-5">
+            ${htmlContent}
+          </div>
+        </div>
+      `;
+    }
+
+    async testApiKey() {
+      const key = getGeminiApiKey();
+      if (!key) {
+        this.openApiKeyModal();
+        return;
+      }
+      const res = await testGeminiApiKey(key);
+      alert(res.message);
+    }
+
+    openApiKeyModal(customNotice = '') {
+      const currentKey = getGeminiApiKey();
+      this.openModal(`
+        <div class="space-y-4 text-left">
+          <div class="flex items-center gap-3">
+            <span class="text-3xl">🔑</span>
+            <div>
+              <h2 class="text-lg font-black text-slate-900">Google Gemini Vision API Key</h2>
+              <p class="text-xs text-slate-500">Enable AI vision to read homework handwriting & photos.</p>
+            </div>
+          </div>
+
+          ${customNotice ? `
+            <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 font-semibold">
+              ${customNotice}
+            </div>
+          ` : ''}
+
+          <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-600 space-y-2">
+            <p><strong>Why is this needed?</strong> Phone camera photos and handwriting require Google Gemini 1.5 Flash Vision to read the text. Google provides this <strong>100% free</strong> with generous limits and no credit card required.</p>
+            <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-indigo-600 font-bold hover:underline">
+              <span>👉 Get your free key at Google AI Studio</span>
+              <span>↗</span>
+            </a>
+          </div>
+
+          <div class="space-y-2">
+            <label class="text-xs font-bold text-slate-700">Paste Gemini API Key:</label>
+            <input type="password" id="modal-gemini-key-input" value="${currentKey}" placeholder="AIzaSy..." 
+                   class="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <div id="modal-key-status-msg" class="text-xs font-bold hidden"></div>
+          </div>
+
+          <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            ${currentKey ? `
+              <button type="button" onclick="window.DadApp.clearApiKey(); window.DadApp.closeModal();" class="px-3.5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-all">
+                Remove Key
+              </button>
+            ` : ''}
+            <button type="button" onclick="window.DadApp.saveModalApiKey()" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition-all active:scale-95 flex items-center gap-1.5">
+              <span>⚡ Save & Test Key</span>
+            </button>
+          </div>
+        </div>
+      `);
+    }
+
+    async saveModalApiKey() {
+      const input = document.getElementById('modal-gemini-key-input');
+      const statusMsg = document.getElementById('modal-key-status-msg');
+      if (!input) return;
+      const keyVal = input.value.trim();
+      if (!keyVal) {
+        if (statusMsg) {
+          statusMsg.className = "text-xs font-bold text-rose-600";
+          statusMsg.textContent = "Please enter an API key.";
+          statusMsg.classList.remove('hidden');
+        }
+        return;
+      }
+
+      if (statusMsg) {
+        statusMsg.className = "text-xs font-bold text-indigo-600";
+        statusMsg.textContent = "Testing connection to Google Gemini...";
+        statusMsg.classList.remove('hidden');
+      }
+
+      const check = await testGeminiApiKey(keyVal);
+      if (!check.ok) {
+        if (statusMsg) {
+          statusMsg.className = "text-xs font-bold text-rose-600";
+          statusMsg.textContent = check.message;
+          statusMsg.classList.remove('hidden');
+        }
+        return;
+      }
+
+      setGeminiApiKey(keyVal);
+      alert('API Key verified & saved! Gemini 1.5 Flash Vision is ready.');
+      this.closeModal();
+      this.renderCurrentView();
+
+      if (this.packetPages.length > 0) {
+        this.startPacketAnalysis();
+      }
+    }
+
+    showNoApiKeyModal() {
+      const student = this.getStudent();
+      const pageCount = this.packetPages.length;
+
+      this.openModal(`
+        <div class="space-y-5 text-left">
+          <div class="flex items-center gap-3">
+            <span class="text-3xl">📸</span>
+            <div>
+              <h2 class="text-lg font-black text-slate-900">${pageCount} Photo${pageCount > 1 ? 's' : ''} Ready for ${student.name}!</h2>
+              <p class="text-xs text-slate-500">Choose how DadWork should build this homework module.</p>
+            </div>
+          </div>
+
+          <div class="p-4 bg-indigo-50/70 rounded-2xl border border-indigo-200 text-xs text-indigo-950 space-y-2">
+            <div class="font-extrabold flex items-center gap-1.5">
+              <span>Option A: Connect Free Gemini AI (Recommended)</span>
+            </div>
+            <p class="text-[11px] text-indigo-800 leading-relaxed">
+              Enables Gemini 1.5 Flash Vision to visually read all handwriting, math formulas, and questions directly from your ${pageCount} photo(s).
+            </p>
+            <div class="flex items-center gap-2 pt-1">
+              <input type="password" id="prompt-quick-api-key" placeholder="Paste free API key (AIzaSy...)" 
+                     class="flex-1 px-3 py-2 rounded-xl border border-indigo-200 text-xs font-mono bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <button onclick="window.DadApp.saveQuickApiKeyAndRun()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition-all active:scale-95 flex-shrink-0">
+                Save & Run 🚀
+              </button>
+            </div>
+            <div class="pt-0.5">
+              <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" class="text-[11px] text-indigo-600 font-bold hover:underline">
+                Get free key from Google AI Studio (takes 30 seconds) ↗
+              </a>
+            </div>
+          </div>
+
+          <div class="relative flex py-1 items-center">
+            <div class="flex-grow border-t border-slate-200"></div>
+            <span class="flex-shrink mx-3 text-xs font-extrabold text-slate-400 uppercase tracking-wider">OR</span>
+            <div class="flex-grow border-t border-slate-200"></div>
+          </div>
+
+          <div class="p-4 bg-amber-50/70 rounded-2xl border border-amber-200 text-xs text-amber-950 space-y-3">
+            <div class="font-extrabold flex items-center gap-1.5">
+              <span>Option B: Topic Assistant (No Key Needed)</span>
+            </div>
+            <p class="text-[11px] text-amber-800 leading-relaxed">
+              Tell DadWork what this packet is about (e.g. Science, Long Division, Animal Habitats). DadWork will craft a complete tailored study guide and quiz for ${student.name} with Dad humor, keeping your photos attached!
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              <div>
+                <label class="block text-[11px] font-bold text-amber-900 mb-1">Subject:</label>
+                <select id="quick-topic-subject" class="w-full px-3 py-2 rounded-xl border border-amber-200 bg-white text-xs font-bold text-slate-800 focus:outline-none">
+                  <option value="Science" selected>Science / Biology</option>
+                  <option value="Math">Math</option>
+                  <option value="Social Studies">Social Studies / Geography</option>
+                  <option value="Spelling">Spelling & Vocabulary</option>
+                  <option value="Reading">Reading Comprehension</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-amber-900 mb-1">Topic / Title:</label>
+                <input type="text" id="quick-topic-title" placeholder="e.g. Insect Body Parts or Fractions" 
+                       class="w-full px-3 py-2 rounded-xl border border-amber-200 bg-white text-xs font-bold text-slate-800 focus:outline-none" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-bold text-amber-900 mb-1">Optional notes or questions from worksheet:</label>
+              <textarea id="quick-topic-notes" rows="2" placeholder="e.g. Christian has to identify head, thorax, abdomen..." 
+                        class="w-full px-3 py-2 rounded-xl border border-amber-200 bg-white text-xs text-slate-800 focus:outline-none"></textarea>
+            </div>
+
+            <button onclick="window.DadApp.generateFromQuickTopic()" class="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5">
+              <span>⚡ Generate Study Unit for ${student.name}</span>
+            </button>
+          </div>
+        </div>
+      `);
+    }
+
+    async saveQuickApiKeyAndRun() {
+      const input = document.getElementById('prompt-quick-api-key');
+      if (!input || !input.value.trim()) {
+        alert("Please paste your Gemini API key.");
+        return;
+      }
+      const keyVal = input.value.trim();
+      const check = await testGeminiApiKey(keyVal);
+      if (!check.ok) {
+        alert(check.message);
+        return;
+      }
+      setGeminiApiKey(keyVal);
+      this.closeModal();
+      this.renderCurrentView();
+      this.startPacketAnalysis();
+    }
+
+    generateFromQuickTopic() {
+      const studentId = this.currentStudentId;
+      const sub = document.getElementById('quick-topic-subject')?.value || 'Science';
+      const title = document.getElementById('quick-topic-title')?.value || (sub === 'Science' ? 'Science Explorer' : 'Homework Study Unit');
+      const notes = document.getElementById('quick-topic-notes')?.value || '';
+
+      const isInsect = /insect|bug|thorax/i.test(title + ' ' + notes);
+      const isFlower = /flower|petal|plant/i.test(title + ' ' + notes);
+      const diagramType = isInsect ? 'insect' : (isFlower ? 'flower' : null);
+
+      const generatedResult = buildSmartStudyUnit(studentId, sub, title, notes, diagramType);
+      this.closeModal();
+
+      const confirmBox = document.getElementById('upload-confirmation-modal');
+      if (confirmBox) {
+        confirmBox.classList.remove('hidden');
+        this.renderUploadConfirmation(generatedResult);
+      }
+    }
+
+    openTopicAssistantModal() {
+      const student = this.getStudent();
+      this.openModal(`
+        <div class="space-y-4 text-left">
+          <div class="flex items-center gap-3">
+            <span class="text-3xl">📝</span>
+            <div>
+              <h2 class="text-lg font-black text-slate-900">Topic Assistant: Instant Study Unit Builder</h2>
+              <p class="text-xs text-slate-500">Build a tailored study guide & quiz for ${student.name} on any subject.</p>
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Student:</label>
+              <div class="flex gap-2">
+                <button type="button" onclick="window.DadApp.switchStudent('christian'); window.DadApp.openTopicAssistantModal();" 
+                        class="flex-1 py-2 px-3 rounded-xl border text-xs font-bold transition-all ${this.currentStudentId === 'christian' ? 'bg-amber-500 border-amber-600 text-white shadow-xs' : 'bg-slate-50 border-slate-200 text-slate-700'}">
+                  Christian (Elementary) 🦸‍♂️
+                </button>
+                <button type="button" onclick="window.DadApp.switchStudent('caleb'); window.DadApp.openTopicAssistantModal();" 
+                        class="flex-1 py-2 px-3 rounded-xl border text-xs font-bold transition-all ${this.currentStudentId === 'caleb' ? 'bg-blue-600 border-blue-700 text-white shadow-xs' : 'bg-slate-50 border-slate-200 text-slate-700'}">
+                  Caleb (Middle School) ⚡
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">School Subject:</label>
+              <select id="assistant-subject" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="Science">Science & Biology</option>
+                <option value="Math">Math & Numbers</option>
+                <option value="Social Studies">Social Studies & Geography</option>
+                <option value="Spelling">Spelling & Vocabulary</option>
+                <option value="Reading">Reading & Literature</option>
+                <option value="General Studies">General Studies</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Topic or Lesson Title:</label>
+              <input type="text" id="assistant-title" placeholder="e.g. Insect Anatomy, Fractions Addition, Continents & Oceans" 
+                     class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Homework Notes or Specific Questions (Optional):</label>
+              <textarea id="assistant-notes" rows="3" placeholder="Paste or type any problems or definitions from the packet..." 
+                        class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <button type="button" onclick="window.DadApp.closeModal()" class="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800">
+              Cancel
+            </button>
+            <button type="button" onclick="window.DadApp.buildFromTopicAssistant()" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition-all active:scale-95 flex items-center gap-1.5">
+              <span>🚀 Generate Unit & Quiz</span>
+            </button>
+          </div>
+        </div>
+      `);
+    }
+
+    buildFromTopicAssistant() {
+      const studentId = this.currentStudentId;
+      const sub = document.getElementById('assistant-subject')?.value || 'General Studies';
+      const title = document.getElementById('assistant-title')?.value || (sub + ' Exploration');
+      const notes = document.getElementById('assistant-notes')?.value || '';
+
+      const isInsect = /insect|bug|thorax/i.test(title + ' ' + notes);
+      const isFlower = /flower|petal|plant/i.test(title + ' ' + notes);
+      const diagramType = isInsect ? 'insect' : (isFlower ? 'flower' : null);
+
+      const generatedResult = buildSmartStudyUnit(studentId, sub, title, notes, diagramType);
+      this.closeModal();
+
+      if (this.currentView !== 'upload') {
+        this.navigate('upload');
+      }
+
+      const confirmBox = document.getElementById('upload-confirmation-modal');
+      if (confirmBox) {
+        confirmBox.classList.remove('hidden');
+        this.renderUploadConfirmation(generatedResult);
+      }
+    }
+
+    showAnalysisErrorModal(errMsg) {
+      this.openModal(`
+        <div class="space-y-4 text-left">
+          <div class="flex items-center gap-3">
+            <span class="text-3xl">⚠️</span>
+            <div>
+              <h2 class="text-lg font-black text-rose-600">Packet Analysis Notice</h2>
+              <p class="text-xs text-slate-500">Google Gemini encountered an issue processing the files.</p>
+            </div>
+          </div>
+
+          <div class="p-4 bg-rose-50 rounded-2xl border border-rose-200 text-xs text-rose-900 font-mono space-y-1">
+            <strong>Error Details:</strong>
+            <p class="text-[11px] break-words">${errMsg}</p>
+          </div>
+
+          <p class="text-xs text-slate-600">
+            You can verify your Gemini API key, or immediately build this unit using the <strong>Topic Assistant</strong> without needing to re-upload.
+          </p>
+
+          <div class="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <button onclick="window.DadApp.openApiKeyModal()" class="px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-xs font-bold text-slate-700 transition-all">
+              🔑 Update API Key
+            </button>
+            <button onclick="window.DadApp.closeModal(); window.DadApp.showNoApiKeyModal();" class="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md transition-all">
+              📝 Use Topic Assistant
+            </button>
+          </div>
+        </div>
+      `);
     }
 
     saveApiKey() {
